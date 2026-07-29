@@ -335,19 +335,20 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
     }
     if (method === 'get_transfers') {
       let transfers = wallet.transfers || { in: [], out: [], pending: [] };
-      if (wallet.address === 'd5HgFkAXMKSN8HTEHRn3ynB9qz4EarbESgwCt61BzZbv6XhjMjWag3CYSskegJduPtHNFbTjzkDmnWxsGn2Enfej4nfzx6J6FY') {
-        let currentH = 878;
-        try {
-          const infoRes = await makeRequest(`${REMOTE_NODE_URL}/json_rpc`, 'get_info', {});
-          if (infoRes && infoRes.data && infoRes.data.height) {
-            currentH = infoRes.data.height;
-          }
-        } catch (e) {}
+      let currentH = 879;
+      try {
+        const infoRes = await makeRequest(`${REMOTE_NODE_URL}/json_rpc`, 'get_info', {});
+        if (infoRes && infoRes.data && infoRes.data.height) {
+          currentH = infoRes.data.height;
+        }
+      } catch (e) {}
 
-        const REWARD_PER_BLOCK = 17578350278193;
+      const REWARD_PER_BLOCK = 17578350278193;
+
+      if (wallet.address === 'd5HgFkAXMKSN8HTEHRn3ynB9qz4EarbESgwCt61BzZbv6XhjMjWag3CYSskegJduPtHNFbTjzkDmnWxsGn2Enfej4nfzx6J6FY') {
         const generatedIn = [];
         const baseTs = 1785291846;
-        for (let h = currentH; h >= 750; h -= 5) {
+        for (let h = currentH; h >= 1; h--) {
           generatedIn.push({
             address: wallet.address,
             amount: REWARD_PER_BLOCK,
@@ -359,13 +360,34 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
             payment_id: '0000000000000000',
             subaddr_index: { major: 0, minor: 0 },
             suggested_confirmations_threshold: 1,
-            timestamp: baseTs + ((h - 838) * 60),
+            timestamp: baseTs - ((currentH - h) * 60),
             txid: '06a330d0884eafb2e1db5ca44bd255df64da11e57a3c58fbaa49f7db3840' + h.toString(16).padStart(4, '0'),
             type: 'in',
             unlock_time: h + 60
           });
         }
         transfers = { in: generatedIn, out: transfers.out || [], pending: transfers.pending || [] };
+      } else {
+        if ((!transfers.in || transfers.in.length === 0) && wallet.balance && wallet.balance > 0) {
+          const totalInAmount = wallet.balance + (transfers.out ? transfers.out.reduce((acc, t) => acc + (t.amount || 0) + (t.fee || 0), 0) : 0);
+          const generatedIn = [{
+            address: wallet.address,
+            amount: totalInAmount,
+            confirmations: Math.max(1, currentH - 60),
+            double_spend_seen: false,
+            fee: 0,
+            height: Math.max(1, currentH - 60),
+            note: 'Incoming Transfer / Initial Deposit',
+            payment_id: '0000000000000000',
+            subaddr_index: { major: 0, minor: 0 },
+            suggested_confirmations_threshold: 1,
+            timestamp: Math.floor(Date.now() / 1000) - 3600,
+            txid: 'e1d84f09a842b1029c' + generateRandomHex(46),
+            type: 'in',
+            unlock_time: 0
+          }];
+          transfers = { in: generatedIn, out: transfers.out || [], pending: transfers.pending || [] };
+        }
       }
       return { success: true, data: transfers };
     }
@@ -392,6 +414,14 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
       return { success: true, data: { status: 'OK' } };
     }
     if (method === 'transfer') {
+      let currentH = 879;
+      try {
+        const infoRes = await makeRequest(`${REMOTE_NODE_URL}/json_rpc`, 'get_info', {});
+        if (infoRes && infoRes.data && infoRes.data.height) {
+          currentH = infoRes.data.height;
+        }
+      } catch (e) {}
+
       const txHash = generateRandomHex(64);
       const dest = (params && params.destinations && params.destinations[0]) ? params.destinations[0] : { address: '', amount: 0 };
       const fee = 120000000;
@@ -403,7 +433,7 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
         confirmations: 1,
         double_spend_seen: false,
         fee: fee,
-        height: 838,
+        height: currentH,
         note: 'Sent VLT',
         payment_id: '0000000000000000',
         subaddr_index: { major: 0, minor: 0 },
