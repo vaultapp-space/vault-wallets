@@ -1,0 +1,75 @@
+{
+  "name": "vault-gui-wallet",
+  "version": "1.1.0",
+  "description": "VAULT Desktop GUI Wallet — https://vaultapp.space",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win --x64",
+    "build:linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "space.vaultapp.wallet",
+    "productName": "VAULT-Wallet",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "src/logo.jpg"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "src/logo.jpg"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ]
+    },
+    "extraResources": [
+      {
+        "from": "daemon/",
+        "to": "daemon/",
+        "filter": [
+          "vaultd",
+          "vaultd.exe",
+          "vault-wallet-rpc",
+          "vault-wallet-rpc.exe",
+          "vault-wallet-cli",
+          "vault-wallet-cli.exe"
+        ]
+      }
+    ],
+    "files": [
+      "main.js",
+      "src/**/*",
+      "package.json"
+    ]
+  },
+  "dependencies": {
+    "qrcode": "^1.5.3"
+  },
+  "devDependencies": {
+    "electron": "^43.2.0",
+    "electron-builder": "^25.1.8"
+  }
+}

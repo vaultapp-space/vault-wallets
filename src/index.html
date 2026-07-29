@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VAULT Desktop Wallet — VLT</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="bg-gradient"></div>
+  <div class="app-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="logo.jpg" alt="VAULT Logo" class="logo-img">
+        <div class="brand-info">
+          <span class="brand-name">VAULT <span class="vlt-badge">VLT</span></span>
+          <span class="brand-url">vaultapp.space</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-item active" data-tab="dashboard" onclick="switchTab('dashboard')">
+          <span class="nav-icon">📊</span> Dashboard
+        </button>
+        <button class="nav-item" data-tab="send" onclick="switchTab('send')">
+          <span class="nav-icon">💸</span> Send VLT
+        </button>
+        <button class="nav-item" data-tab="receive" onclick="switchTab('receive')">
+          <span class="nav-icon">📥</span> Receive
+        </button>
+        <button class="nav-item" data-tab="transactions" onclick="switchTab('transactions')">
+          <span class="nav-icon">📜</span> Transactions
+        </button>
+        <button class="nav-item" data-tab="contacts" onclick="switchTab('contacts')">
+          <span class="nav-icon">📖</span> Address Book
+        </button>
+        <button class="nav-item" data-tab="mining" onclick="switchTab('mining')">
+          <span class="nav-icon">⛏️</span> Mining
+        </button>
+        <button class="nav-item" data-tab="settings" onclick="switchTab('settings')">
+          <span class="nav-icon">⚙️</span> Node Settings
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="node-status">
+          <span class="status-dot green" id="nodeDot"></span>
+          <span class="status-label" id="nodeLabel">Node Connected</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Top Header -->
+      <header class="top-bar">
+        <div class="wallet-selector">
+          <span class="wallet-label">Current Wallet:</span>
+          <span class="wallet-name" id="currentWalletName">No Wallet Loaded</span>
+        </div>
+        <div class="top-actions">
+          <button class="btn-secondary btn-rescan" onclick="rescanBlockchain()">🔄 Rescan Blockchain</button>
+          <button class="btn-secondary" onclick="openWalletModal()">Manage Wallets / Setup</button>
+        </div>
+      </header>
+
+      <!-- Dashboard View -->
+      <div class="tab-view active" id="tab-dashboard">
+        <div class="balance-card">
+          <div class="balance-title"><img src="logo.jpg" class="coin-logo-badge" alt="VLT"> TOTAL BALANCE</div>
+          <div class="balance-amount"><span id="balanceTotal">0.000000</span> <span class="unit">VLT</span></div>
+          
+          <div class="balance-breakdown">
+            <div class="breakdown-item">
+              <span class="breakdown-label">Spendable Balance:</span>
+              <span class="breakdown-val green" id="balanceUnlocked">0.000000 VLT</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-label">Locked Balance (Confirming):</span>
+              <span class="breakdown-val orange" id="balanceLocked">0.000000 VLT</span>
+            </div>
+          </div>
+
+          <div class="sync-progress-box">
+            <div class="sync-progress-header">
+              <span>Blockchain Sync Status</span>
+              <span id="syncPercentText">100% Synced</span>
+            </div>
+            <div class="sync-bar-track">
+              <div class="sync-bar-fill" id="syncBarFill" style="width: 100%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3>Network Status</h3>
+            <div class="info-row">
+              <span class="info-label">Blockchain Height</span>
+              <span class="info-val" id="netHeight">0</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Difficulty</span>
+              <span class="info-val" id="netDifficulty">1</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Network Hashrate</span>
+              <span class="info-val" id="netHashrate">0 H/s</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Receiving Address</h3>
+            <div class="address-preview" id="quickAddress">d5...</div>
+            <button class="btn-sm" onclick="copyAddress()">Copy Address</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Send View -->
+      <div class="tab-view" id="tab-send">
+        <div class="card max-w-600">
+          <h2>Send VAULT (VLT)</h2>
+          <div class="form-group">
+            <label>Recipient VAULT Address (starts with d5)</label>
+            <input type="text" id="sendAddress" placeholder="d5..." class="mono-input">
+          </div>
+          <div class="form-group">
+            <div class="label-with-btn">
+              <label>Amount (VLT)</label>
+              <button class="btn-text-action" onclick="sendMax()">Send Max</button>
+            </div>
+            <input type="number" id="sendAmount" placeholder="0.0" step="0.000001">
+          </div>
+          <div class="form-group">
+            <label>Priority</label>
+            <select id="sendPriority" onchange="updateFeePreview()">
+              <option value="1">Normal Priority</option>
+              <option value="2">Elevated Priority</option>
+              <option value="3">High Priority</option>
+            </select>
+          </div>
+
+          <div class="fee-preview-card" id="feePreviewCard">
+            <div class="fee-preview-row">
+              <span>Estimated Network Fee:</span>
+              <span class="fee-val" id="feeEstimateVal">~0.000120 VLT</span>
+            </div>
+            <div class="fee-preview-sub" id="feeEstimateSub">Normal Priority &bull; Estimated confirmation: ~1 block (60s)</div>
+          </div>
+
+          <button class="btn-primary mt-16" onclick="sendTransaction()">Send Transaction</button>
+        </div>
+      </div>
+
+      <!-- Receive View -->
+      <div class="tab-view" id="tab-receive">
+        <div class="card max-w-600 text-center">
+          <h2>Your Public VAULT Address</h2>
+          <p class="subtitle">Share this address or scan the QR code to receive VLT payments untraceably.</p>
+          
+          <div class="qr-wrapper">
+            <canvas id="qrCanvas"></canvas>
+          </div>
+
+          <div class="address-box mono-input" id="fullAddress">d5...</div>
+          <button class="btn-primary mt-16" onclick="copyAddress()">Copy Address</button>
+
+          <!-- Subaddress Section -->
+          <div class="subaddress-section mt-24">
+            <div class="subaddress-header">
+              <h3>Disposable Privacy Subaddresses</h3>
+              <button class="btn-sm" onclick="createNewSubaddress()">+ New Subaddress</button>
+            </div>
+            <div class="subaddress-list" id="subaddressListContainer">
+              <div class="empty-tx-box">Loading subaddresses...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transactions View -->
+      <div class="tab-view" id="tab-transactions">
+        <div class="card">
+          <div class="card-header-flex">
+            <div>
+              <h2>Transaction History</h2>
+              <p class="subtitle">Real-time record of all transfers associated with your wallet.</p>
+            </div>
+            <button class="btn-secondary" onclick="exportTransactionsCsv()">📥 Export CSV</button>
+          </div>
+
+          <div class="tx-filters">
+            <button class="tx-filter-btn active" data-filter="all" onclick="filterTransactions('all')">All</button>
+            <button class="tx-filter-btn" data-filter="in" onclick="filterTransactions('in')">Received</button>
+            <button class="tx-filter-btn" data-filter="out" onclick="filterTransactions('out')">Sent</button>
+            <button class="tx-filter-btn" data-filter="pending" onclick="filterTransactions('pending')">Pending</button>
+          </div>
+
+          <div class="tx-list" id="txListContainer">
+            <div class="empty-tx-box">Loading transactions...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Address Book / Contacts View -->
+      <div class="tab-view" id="tab-contacts">
+        <div class="card">
+          <div class="card-header-flex">
+            <div>
+              <h2>Address Book & Contacts</h2>
+              <p class="subtitle">Save frequently used recipient addresses for fast, one-click sending.</p>
+            </div>
+            <button class="btn-primary" onclick="openAddContactModal()">+ Add Contact</button>
+          </div>
+
+          <div class="contacts-list" id="contactsListContainer">
+            <div class="empty-tx-box">No saved contacts yet. Click "+ Add Contact" to save an address.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mining View -->
+      <div class="tab-view" id="tab-mining">
+        <div class="card max-w-600">
+          <h2>Solo CPU Mining (Local Device)</h2>
+          <p class="subtitle">Mine block rewards directly on your local computer's CPU into your active VAULT address.</p>
+
+          <div style="margin-bottom: 16px; padding: 12px 14px; border-radius: 8px; font-size: 12px; background: rgba(0, 242, 254, 0.06); border: 1px solid rgba(0, 242, 254, 0.2); color: #00f2fe; line-height: 1.5;">
+            ⚡ <strong>Local Daemon Required:</strong> Solo CPU mining connects directly to a local daemon (<code>vaultd</code>) running on <code>127.0.0.1:29081</code>.
+          </div>
+
+          <div class="form-group">
+            <div class="label-with-btn">
+              <label>CPU Threads</label>
+              <span class="text-muted" id="deviceCoreInfo">Detected: 8 CPU Cores</span>
+            </div>
+            <input type="number" id="miningThreads" value="7" min="1" max="64">
+          </div>
+
+          <div class="mining-status-card" id="miningStatusCard">
+            <span class="status-dot red" id="miningDot"></span>
+            <span id="miningStatusText">Status: Stopped (0 H/s)</span>
+          </div>
+          <button class="btn-primary mt-16" id="btnToggleMining" onclick="toggleMining()">Start Mining</button>
+        </div>
+      </div>
+
+      <!-- Settings View -->
+      <div class="tab-view" id="tab-settings">
+        <div class="card max-w-600 mb-24">
+          <h2>🔒 Local Full Node & Blockchain Storage</h2>
+          <p class="subtitle">Your wallet operates as a standalone local full node. The full VAULT blockchain is stored and synced on your device for maximum security and privacy.</p>
+          
+          <div class="form-group mt-16">
+            <label>Local Blockchain Storage Directory</label>
+            <div class="mono-input" id="localBlockchainPath" style="padding: 10px; font-size: 11px; color: #8899a6; word-break: break-all;">~/Library/Application Support/vault-gui-wallet/vault-blockchain</div>
+          </div>
+
+          <div class="form-group mt-12">
+            <label>Local Blockchain Database Size</label>
+            <div style="font-size: 18px; font-weight: 700; color: #00f2fe;" id="localDbSizeText">0.00 MB</div>
+          </div>
+
+          <div class="form-group mt-12">
+            <label>Node Status</label>
+            <div style="font-size: 14px; font-weight: 600; color: #10b981;" id="nodeModeText">🛡️ Local Full Node Active (Syncing in Background)</div>
+          </div>
+
+          <div class="sync-bar-container mt-16" style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
+              <span id="nodeStatusBadge">Local Node Syncing...</span>
+              <span id="syncProgressPercent">0%</span>
+            </div>
+            <div class="progress-bar-bg" style="height: 8px;">
+              <div class="progress-bar-fill" id="localSyncBarFill" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 10px; margin-top: 16px;">
+            <button class="btn-primary btn-rescan" onclick="rescanBlockchain()">🔄 Rescan Blockchain</button>
+          </div>
+        </div>
+
+
+        <div class="card max-w-600 mt-24">
+          <h2>Security & Wallet Backup</h2>
+          <p class="subtitle">Verify your 25-word mnemonic recovery seed or export a secure backup file.</p>
+
+          <div style="display: flex; gap: 10px; margin-top: 16px;">
+            <button class="btn-primary" onclick="queryMnemonicSeed()">🔑 View Recovery Seed</button>
+            <button class="btn-secondary" onclick="exportWalletBackup()">💾 Export Backup to Desktop</button>
+          </div>
+
+          <div class="seed-backup-box mt-16" id="seedBackupBox" style="display: none;">
+            <h4 class="mb-12">25-Word Mnemonic Recovery Seed</h4>
+            <div class="seed-grid" id="backupSeedGrid"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ADD CONTACT MODAL -->
+  <div class="modal-overlay" id="addContactModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Add New Contact</h3>
+        <button class="modal-close" onclick="closeAddContactModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Contact Name</label>
+          <input type="text" id="contactNameInput" placeholder="e.g. Alice / Mining Pool / Savings">
+        </div>
+        <div class="form-group">
+          <label>VAULT Address (starts with d5)</label>
+          <input type="text" id="contactAddressInput" placeholder="d5..." class="mono-input">
+        </div>
+        <button class="btn-primary mt-16" onclick="saveNewContact()">Save Contact</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- WALLET SETUP / MANAGEMENT MODAL -->
+  <div class="modal-overlay" id="walletModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>VAULT Wallet Setup & Management</h3>
+        <button class="modal-close" onclick="closeWalletModal()">×</button>
+      </div>
+      <div class="modal-body">
+
+        <!-- Wizard Step 1: Choose Action -->
+        <div id="stepChoice" class="wizard-step">
+          <p class="subtitle text-left">Choose an option to manage or initialize your VAULT wallet:</p>
+          <div class="action-grid">
+            <button class="action-card" onclick="startCreateWallet()">
+              <div class="action-icon">➕</div>
+              <div class="action-title">Create New Wallet</div>
+              <div class="action-desc">Generate a new VAULT address and 25-word recovery phrase.</div>
+            </button>
+
+            <button class="action-card" onclick="showStepRestore()">
+              <div class="action-icon">🔄</div>
+              <div class="action-title">Restore Wallet</div>
+              <div class="action-desc">Recover access using a 25-word Electrum mnemonic seed.</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Wizard Step 2: Display New Seed & Address -->
+        <div id="stepNewSeed" class="wizard-step" style="display: none;">
+          <div class="badge-success">✔ New Wallet Generated Successfully!</div>
+          <p class="subtitle text-left">Below is your 25-word recovery phrase. Write it down and keep it safe!</p>
+          
+          <div class="seed-grid" id="seedWordGrid">
+            <!-- 25 Seed Words -->
+          </div>
+
+          <div class="auto-save-banner">
+            💾 <strong>Auto-Saved to Desktop:</strong> Phrase saved to <code>~/Desktop/vault_wallet_recovery.txt</code>
+          </div>
+
+          <div class="form-group mt-16">
+            <label>Generated Address (d5...)</label>
+            <div class="address-preview" id="newWalletAddr">d5...</div>
+          </div>
+
+          <button class="btn-primary" onclick="finishCreateWallet()">Use This Wallet</button>
+        </div>
+
+        <!-- Wizard Step 3: Restore Wallet -->
+        <div id="stepRestore" class="wizard-step" style="display: none;">
+          <h3>Restore Existing Wallet</h3>
+          <p class="subtitle text-left">Enter your 25-word recovery phrase separated by spaces:</p>
+          
+          <div class="form-group">
+            <textarea id="restoreSeedInput" rows="4" class="mono-input" placeholder="[REDACTED-COMPROMISED-SEED-PHRASE]..."></textarea>
+          </div>
+
+          <button class="btn-primary" onclick="finishRestoreWallet()">Restore & Open Wallet</button>
+          <button class="btn-secondary mt-16" onclick="showStepChoice()">Back</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
