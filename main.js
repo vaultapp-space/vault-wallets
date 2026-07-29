@@ -485,41 +485,39 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
   }
 
   // 2. For non-wallet daemon calls (e.g. get_info, get_last_block_header, get_block_headers_range)
-  // Always query Remote HTTPS Node to obtain live network height & stats
+  let remoteRes = null;
   try {
-    const remoteRes = await makeRequest(`${REMOTE_NODE_URL}/json_rpc`, method, params);
-    
-    // Also check local daemon if running
-    let localRes = null;
+    remoteRes = await makeRequest(`${REMOTE_NODE_URL}/json_rpc`, method, params);
+  } catch (e1) {
     try {
-      localRes = await makeRequest('http://127.0.0.1:29081/json_rpc', method, params);
-    } catch (e) {}
+      remoteRes = await makeRequest('https://webwallet.vaultapp.space/json_rpc', method, params);
+    } catch (e2) {}
+  }
 
-    if (localRes && localRes.success && localRes.data) {
-      const localH = localRes.data.height || 0;
-      const remoteH = (remoteRes && remoteRes.success && remoteRes.data && remoteRes.data.height) ? remoteRes.data.height : 0;
-      
-      if (localH >= remoteH && localH > 1) {
-        return localRes;
-      }
-      
-      // If local node is catching up, present the remote live data with target height mapped
-      if (remoteRes && remoteRes.success && remoteRes.data) {
-        remoteRes.fallback = true;
-        if (remoteRes.data.height && localH > 0) {
-          remoteRes.data.local_height = localH;
-          remoteRes.data.target_height = Math.max(remoteH, localRes.data.target_height || 0);
-        }
-        return remoteRes;
-      }
+  let localRes = null;
+  try {
+    localRes = await makeRequest('http://127.0.0.1:29081/json_rpc', method, params);
+  } catch (e3) {}
+
+  if (remoteRes && remoteRes.success && remoteRes.data) {
+    const remoteH = remoteRes.data.height || (remoteRes.data.block_header ? remoteRes.data.block_header.height : 0);
+    const localH = (localRes && localRes.success && localRes.data) ? (localRes.data.height || 0) : 0;
+
+    if (localH >= remoteH && localH > 1) {
       return localRes;
     }
 
-    if (remoteRes && remoteRes.success && remoteRes.data) {
-      remoteRes.fallback = true;
-      return remoteRes;
+    remoteRes.fallback = true;
+    if (remoteH > 0 && remoteRes.data) {
+      remoteRes.data.target_height = Math.max(remoteH, remoteRes.data.target_height || remoteH);
+      if (localH > 0) remoteRes.data.local_height = localH;
     }
-  } catch (err) {}
+    return remoteRes;
+  }
+
+  if (localRes && localRes.success && localRes.data) {
+    return localRes;
+  }
 
   return { success: false, error: 'All node connections failed' };
 }
