@@ -879,6 +879,6 @@ fetchActiveAddress().then(async () => {
   updateFeePreview();
 });
 
-setInterval(updateDashboard, 5000);
+setInterval(updateDashboard, 1000);
 
 
