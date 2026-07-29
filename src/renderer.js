@@ -2,12 +2,11 @@ const { ipcRenderer } = require('electron');
 const QRCode = require('qrcode');
 
 const REMOTE_DAEMON_URL = 'https://node.vaultapp.space/json_rpc';
-const REMOTE_WALLET_RPC_URL = 'https://node.vaultapp.space/wallet_rpc';
 const LOCAL_DAEMON_URL = 'http://127.0.0.1:29081/json_rpc';
 const LOCAL_WALLET_RPC_URL = 'http://127.0.0.1:29083/json_rpc';
 
 let currentDaemonUrl = REMOTE_DAEMON_URL;
-let currentWalletRpcUrl = REMOTE_WALLET_RPC_URL;
+let currentWalletRpcUrl = LOCAL_WALLET_RPC_URL;
 let activeAddress = '';
 let isLocalDeviceMiningActive = false;
 let currentSeedPhrase = '';
