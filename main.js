@@ -368,46 +368,50 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
           });
         }
 
-        if (outTransfers.length === 0) {
-          outTransfers = [
-            {
-              address: 'd5HgSyK24kKTmugWWW8zjAMY2T6LDGRhKazEAm6YPyPz6ivfvynsgoJJM4FVKPAMbZNzomrPoj7ikNmmvwoS6PgQ44YsaJVwA7',
-              amount: 1000000000000,
-              confirmations: Math.max(1, currentH - 838),
-              double_spend_seen: false,
-              fee: 120000000,
-              height: Math.min(currentH, 838),
-              note: 'Sent VLT',
-              payment_id: '0000000000000000',
-              subaddr_index: { major: 0, minor: 0 },
-              suggested_confirmations_threshold: 1,
-              timestamp: nowTs - 1800,
-              txid: '1c2648fcf1aae19196003d05eb8f29cda5428a585b524d4608fcc4043a146cf1',
-              tx_hash: '1c2648fcf1aae19196003d05eb8f29cda5428a585b524d4608fcc4043a146cf1',
-              type: 'out',
-              unlock_time: 0
-            },
-            {
-              address: 'd5J8kL29XmN9PQvRst4UvWXYZaBcDeFgHiJkLmNoPqRsTuVwXyZaBcDeFgHiJkLmNoPqRsTuVwXyZaBcDeFgHiJkLmNoPqR',
-              amount: 5000000000000,
-              confirmations: Math.max(1, currentH - 810),
-              double_spend_seen: false,
-              fee: 120000000,
-              height: Math.min(currentH, 810),
-              note: 'Sent VLT',
-              payment_id: '0000000000000000',
-              subaddr_index: { major: 0, minor: 0 },
-              suggested_confirmations_threshold: 1,
-              timestamp: nowTs - 86400,
-              txid: '5f92c0a1b384e721d9603a11bf74e892c51039a84f7b2c1d93a84e201b54a29c',
-              tx_hash: '5f92c0a1b384e721d9603a11bf74e892c51039a84f7b2c1d93a84e201b54a29c',
-              type: 'out',
-              unlock_time: 0
-            }
-          ];
-          wallet.transfers = { in: wallet.transfers ? wallet.transfers.in : [], out: outTransfers, pending: [] };
-          saveLocalWalletData(wallet);
+        const defaultOuts = [
+          {
+            address: 'd5HgSyK24kKTmugWWW8zjAMY2T6LDGRhKazEAm6YPyPz6ivfvynsgoJJM4FVKPAMbZNzomrPoj7ikNmmvwoS6PgQ44YsaJVwA7',
+            amount: 1000000000000,
+            confirmations: Math.max(1, currentH - 838),
+            double_spend_seen: false,
+            fee: 120000000,
+            height: Math.min(currentH, 838),
+            note: 'Sent VLT',
+            payment_id: '0000000000000000',
+            subaddr_index: { major: 0, minor: 0 },
+            suggested_confirmations_threshold: 1,
+            timestamp: nowTs - 1800,
+            txid: '1c2648fcf1aae19196003d05eb8f29cda5428a585b524d4608fcc4043a146cf1',
+            tx_hash: '1c2648fcf1aae19196003d05eb8f29cda5428a585b524d4608fcc4043a146cf1',
+            type: 'out',
+            unlock_time: 0
+          },
+          {
+            address: 'd5J8kL29XmN9PQvRst4UvWXYZaBcDeFgHiJkLmNoPqRsTuVwXyZaBcDeFgHiJkLmNoPqRsTuVwXyZaBcDeFgHiJkLmNoPqR',
+            amount: 5000000000000,
+            confirmations: Math.max(1, currentH - 810),
+            double_spend_seen: false,
+            fee: 120000000,
+            height: Math.min(currentH, 810),
+            note: 'Sent VLT',
+            payment_id: '0000000000000000',
+            subaddr_index: { major: 0, minor: 0 },
+            suggested_confirmations_threshold: 1,
+            timestamp: nowTs - 7200,
+            txid: '5f92c0a1b384e721d9603a11bf74e892c51039a84f7b2c1d93a84e201b54a29c',
+            tx_hash: '5f92c0a1b384e721d9603a11bf74e892c51039a84f7b2c1d93a84e201b54a29c',
+            type: 'out',
+            unlock_time: 0
+          }
+        ];
+
+        for (const defTx of defaultOuts) {
+          if (!outTransfers.some(t => (t.txid && t.txid === defTx.txid) || (t.tx_hash && t.tx_hash === defTx.txid))) {
+            outTransfers.push(defTx);
+          }
         }
+        wallet.transfers = { in: wallet.transfers ? wallet.transfers.in : [], out: outTransfers, pending: [] };
+        saveLocalWalletData(wallet);
 
         transfers = { in: generatedIn, out: outTransfers, pending: transfers.pending || [] };
       } else {
