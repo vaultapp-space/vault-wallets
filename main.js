@@ -337,14 +337,13 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
         }
       }
 
-      // Pure wallet balance derived from actual incoming/outgoing wallet transactions
-      let bal = Math.max(0, totalIn - totalOutDebit);
-      let unlocked = Math.max(0, unlockedIn - totalOutDebit);
+      // Preserve stored wallet balance from active wallet data
+      let bal = (wallet.balance !== undefined && wallet.balance > 0) ? wallet.balance : (totalIn > 0 ? Math.max(0, totalIn - totalOutDebit) : 0);
+      let unlocked = (wallet.unlocked_balance !== undefined && wallet.unlocked_balance > 0) ? wallet.unlocked_balance : bal;
 
-      // Preserve synced RPC balance if active
-      if (totalIn === 0 && wallet.balance && wallet.balance > 0) {
-        bal = Math.max(0, wallet.balance - totalOutDebit);
-        unlocked = Math.max(0, (wallet.unlocked_balance || wallet.balance) - totalOutDebit);
+      if (totalIn > 0) {
+        bal = Math.max(0, totalIn - totalOutDebit);
+        unlocked = Math.max(0, unlockedIn - totalOutDebit);
       }
 
       wallet.balance = Math.max(0, bal);
@@ -529,19 +528,34 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
     }
   }
 
-  // 2. For non-wallet calls (e.g. get_info), try local first, then remote fallback
+  // 2. For non-wallet daemon calls (e.g. get_info, get_last_block_header)
+  // Step A: Try local node (127.0.0.1:29081)
   try {
-    return await makeRequest(localUrl);
-  } catch (err) {
-    if (localUrl !== remoteUrl) {
-      try {
-        const result = await makeRequest(remoteUrl);
-        result.fallback = true;
-        return result;
-      } catch (remoteErr) {}
+    const localRes = await makeRequest('http://127.0.0.1:29081/json_rpc');
+    if (localRes && localRes.success && localRes.data) {
+      return localRes;
     }
-    return { success: false, error: err.message };
-  }
+  } catch (err) {}
+
+  // Step B: Try Remote HTTPS Node (node.vaultapp.space)
+  try {
+    const remoteRes = await makeRequest('https://node.vaultapp.space/json_rpc');
+    if (remoteRes && remoteRes.success && remoteRes.data) {
+      remoteRes.fallback = true;
+      return remoteRes;
+    }
+  } catch (err) {}
+
+  // Step C: Try Remote IP Node (8.229.216.134:29081)
+  try {
+    const ipRes = await makeRequest('http://8.229.216.134:29081/json_rpc');
+    if (ipRes && ipRes.success && ipRes.data) {
+      ipRes.fallback = true;
+      return ipRes;
+    }
+  } catch (err) {}
+
+  return { success: false, error: 'All node connections failed' };
 }
 
 // ─── Auto-Download Local Daemon Binary If Missing ─────────
