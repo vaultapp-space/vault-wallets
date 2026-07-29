@@ -10,11 +10,33 @@ let currentWalletRpcUrl = LOCAL_WALLET_RPC_URL;
 let activeAddress = '';
 let currentSeedPhrase = '';
 
-const mnemonicWordList = [
-  "ingested", "molten", "mirror", "novelty", "feline", "rally", "clue", "jetting",
-  "syllabus", "school", "nautical", "hectare", "plotting", "january", "kept", "alumni",
-  "inroads", "linen", "butter", "camp", "unquoted", "hoax", "succeed", "tribal", "vault"
-];
+const ATOMIC_UNITS = 1000000000000n;
+const REWARD_PER_BLOCK = 17578350278193;
+
+function safeToBigInt(value) {
+  try {
+    return typeof value === 'bigint' ? value : BigInt(Math.round(Number(value) || 0));
+  } catch (e) {
+    return 0n;
+  }
+}
+
+// Format an atomic-unit amount (Number or BigInt) as a fixed-6-decimal VLT
+// string using BigInt arithmetic, so balances above Number.MAX_SAFE_INTEGER
+// (~9007 VLT) don't lose precision the way plain float division would.
+function formatAtomicToVlt(atomic) {
+  let big;
+  try {
+    big = typeof atomic === 'bigint' ? atomic : BigInt(Math.round(Number(atomic) || 0));
+  } catch (e) {
+    big = 0n;
+  }
+  const negative = big < 0n;
+  if (negative) big = -big;
+  const whole = big / ATOMIC_UNITS;
+  const frac = (big % ATOMIC_UNITS).toString().padStart(12, '0').slice(0, 6);
+  return `${negative ? '-' : ''}${whole.toString()}.${frac}`;
+}
 
 function showToast(type, message) {
   const container = document.getElementById('toastContainer');
@@ -90,26 +112,50 @@ function showStepRestore() {
   document.getElementById('stepRestore').style.display = 'block';
 }
 
-async function startCreateWallet() {
-  const words = [];
-  for (let i = 0; i < 25; i++) {
-    const idx = Math.floor(Math.random() * mnemonicWordList.length);
-    words.push(mnemonicWordList[idx]);
-  }
-  currentSeedPhrase = words.join(' ');
+function generateWalletPassword() {
+  const bytes = new Uint8Array(24);
+  window.crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
 
+async function startCreateWallet() {
   const walletFilename = 'vault_wallet_' + Date.now();
-  await ipcRenderer.invoke('rpc-call', {
+  const walletPassword = generateWalletPassword();
+
+  const createRes = await ipcRenderer.invoke('rpc-call', {
     url: currentWalletRpcUrl,
     method: 'create_wallet',
     params: {
       filename: walletFilename,
-      password: 'password123',
+      password: walletPassword,
       language: 'English'
     }
   });
 
+  if (!createRes || !createRes.success) {
+    showToast('error', 'Failed to create wallet: ' + formatRpcError(createRes));
+    return;
+  }
+
   await refreshActiveAddress();
+  if (!activeAddress) {
+    showToast('error', 'Wallet was created but no address was returned. Please try again.');
+    return;
+  }
+
+  const seedRes = await ipcRenderer.invoke('rpc-call', {
+    url: currentWalletRpcUrl,
+    method: 'query_key',
+    params: { key_type: 'mnemonic' }
+  });
+
+  if (!seedRes || !seedRes.success || !seedRes.data || !seedRes.data.key) {
+    showToast('error', 'Wallet was created but the real recovery seed could not be retrieved: ' + formatRpcError(seedRes));
+    return;
+  }
+
+  currentSeedPhrase = seedRes.data.key;
+  const words = currentSeedPhrase.split(/\s+/);
 
   const grid = document.getElementById('seedWordGrid');
   grid.innerHTML = '';
@@ -155,7 +201,7 @@ async function finishRestoreWallet() {
     method: 'restore_deterministic_wallet',
     params: {
       filename: restoredFilename,
-      password: 'password123',
+      password: generateWalletPassword(),
       seed: seedInput,
       restore_height: 0,
       language: 'English'
@@ -239,19 +285,6 @@ async function updateDashboard() {
       const d = resInfo.data;
       height = d.height || 0;
       let targetH = d.target_height || 0;
-
-      if (targetH < height && daemonStatus && daemonStatus.remoteHost) {
-        try {
-          const remoteRes = await ipcRenderer.invoke('rpc-call', {
-            url: `https://node.vaultapp.space/json_rpc`,
-            method: 'get_info'
-          });
-          if (remoteRes && remoteRes.success && remoteRes.data && remoteRes.data.height) {
-            targetH = Math.max(targetH, remoteRes.data.height);
-          }
-        } catch (e) {}
-      }
-
       if (targetH < height) targetH = height;
 
       let syncPct = 100;
@@ -287,7 +320,6 @@ async function updateDashboard() {
       } catch (e) {}
 
       if (!supplyStr && height > 0) {
-        const REWARD_PER_BLOCK = 17578350278193;
         supplyStr = `${((height * REWARD_PER_BLOCK) / 1e12).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} VLT`;
       }
 
@@ -298,7 +330,11 @@ async function updateDashboard() {
       if (netSupEl) netSupEl.innerText = supplyStr || '0.00 VLT';
       document.getElementById('nodeDot').className = 'status-dot green';
 
-      // Show connection source & sync status
+      // Show connection source & sync status. The sync bar always reflects the
+      // LOCAL daemon's real progress — wallet balance/transfers come from the
+      // local wallet-rpc scanning the local daemon, so it must never claim
+      // "100% Synced" just because network stats are being shown from a
+      // remote fallback while the local chain is still behind.
       let nodeLabel = 'Connected to Node';
       let badgeLabel = 'Node Connected (100% Synced)';
       let syncText = '100% Synced';
@@ -306,14 +342,23 @@ async function updateDashboard() {
       const remoteHost = (daemonStatus && daemonStatus.remoteHost) ? daemonStatus.remoteHost : 'node.vaultapp.space';
 
       if (resInfo.fallback) {
-        nodeLabel = `Remote Node (${remoteHost})`;
-        badgeLabel = `Connected to Remote Node (${remoteHost} • 100% Synced)`;
-        syncPct = 100;
-        syncText = '100% Synced (Remote Node)';
+        const localH = d.local_height || 0;
+        let localSyncPct = 0;
+        if (targetH > 0) {
+          localSyncPct = localH > 0 ? Math.min(99, Math.round((localH / targetH) * 100)) : 0;
+        }
+        nodeLabel = `Remote Node (${remoteHost}) — Local ${localSyncPct}% Synced`;
+        badgeLabel = `Network info from ${remoteHost} — Local wallet syncing (${localH}/${targetH} blocks • ${localSyncPct}%)`;
+        syncPct = localSyncPct;
+        syncText = `Local Syncing ${localH}/${targetH} (${localSyncPct}%)`;
       } else if (syncPct < 100) {
         nodeLabel = `Local Node Syncing (${syncPct}%)`;
         badgeLabel = `Downloading Local Blockchain (${height}/${targetH} blocks • ${syncPct}%)`;
         syncText = `Syncing ${height}/${targetH} (${syncPct}%)`;
+      } else {
+        nodeLabel = 'Local Node — Fully Synced';
+        badgeLabel = 'Local Node Connected (100% Synced)';
+        syncText = '100% Synced (Local Node)';
       }
 
       document.getElementById('nodeLabel').innerText = nodeLabel;
@@ -327,6 +372,17 @@ async function updateDashboard() {
 
       document.getElementById('syncPercentText').innerText = syncText;
       document.getElementById('syncBarFill').style.width = `${syncPct}%`;
+
+      const nodeModeEl = document.getElementById('nodeModeText');
+      if (nodeModeEl) {
+        nodeModeEl.innerText = resInfo.fallback
+          ? `📡 Using Remote Node (${remoteHost}) — Local Full Node Syncing`
+          : (syncPct >= 100 ? '🛡️ Local Full Node Active (Fully Synced)' : `🛡️ Local Full Node Active (Syncing ${syncPct}%)`);
+      }
+      const rpcEndpointEl = document.getElementById('deskExpRpcEndpoint');
+      if (rpcEndpointEl) {
+        rpcEndpointEl.innerText = resInfo.fallback ? `https://${remoteHost}` : 'http://127.0.0.1:29081 (local)';
+      }
     } else {
       document.getElementById('nodeDot').className = 'status-dot red';
       document.getElementById('nodeLabel').innerText = 'Node Disconnected — Retrying...';
@@ -341,13 +397,13 @@ async function updateDashboard() {
     });
 
     if (resBal && resBal.success && resBal.data) {
-      const totalAtomic = resBal.data.balance || 0;
-      const unlockedAtomic = resBal.data.unlocked_balance || 0;
+      const totalAtomic = safeToBigInt(resBal.data.balance);
+      const unlockedAtomic = safeToBigInt(resBal.data.unlocked_balance);
       const lockedAtomic = totalAtomic - unlockedAtomic;
 
-      const total = (totalAtomic / 1e12).toFixed(6);
-      const unlocked = (unlockedAtomic / 1e12).toFixed(6);
-      const locked = (lockedAtomic / 1e12).toFixed(6);
+      const total = formatAtomicToVlt(totalAtomic);
+      const unlocked = formatAtomicToVlt(unlockedAtomic);
+      const locked = formatAtomicToVlt(lockedAtomic);
 
       document.getElementById('balanceTotal').innerText = total;
       document.getElementById('balanceUnlocked').innerText = `${unlocked} VLT`;
@@ -374,37 +430,66 @@ function copyAddress() {
   showToast('info', 'Address copied to clipboard!');
 }
 
+function isValidVaultAddress(address) {
+  return typeof address === 'string' && /^d5[1-9A-HJ-NP-Za-km-z]{90,110}$/.test(address);
+}
+
+let isSendingTransaction = false;
+
 async function sendTransaction() {
+  if (isSendingTransaction) return;
+
   const address = document.getElementById('sendAddress').value.trim();
   const amountVlt = parseFloat(document.getElementById('sendAmount').value);
   const priority = parseInt(document.getElementById('sendPriority').value);
 
-  if (!address || isNaN(amountVlt) || amountVlt <= 0) {
-    showToast('error', 'Please enter a valid recipient address (d5...) and amount.');
+  if (!isValidVaultAddress(address)) {
+    showToast('error', 'Please enter a valid recipient VAULT address starting with d5.');
     return;
   }
 
+  if (isNaN(amountVlt) || amountVlt <= 0) {
+    showToast('error', 'Please enter a valid positive amount.');
+    return;
+  }
+
+  const feeVlt = calcFeeVlt(priority);
+  const shortAddr = address.substring(0, 14) + '...' + address.substring(address.length - 10);
+  const confirmed = window.confirm(
+    `Confirm transaction:\n\nTo: ${shortAddr}\nAmount: ${amountVlt.toFixed(6)} VLT\nEstimated fee: ~${feeVlt} VLT\n\nThis cannot be undone. Send now?`
+  );
+  if (!confirmed) return;
+
   const atomicAmount = Math.round(amountVlt * 1e12);
+  const sendBtn = document.getElementById('btnSendTransaction');
 
-  const res = await ipcRenderer.invoke('rpc-call', {
-    url: currentWalletRpcUrl,
-    method: 'transfer',
-    params: {
-      destinations: [{ amount: atomicAmount, address }],
-      priority
+  isSendingTransaction = true;
+  if (sendBtn) sendBtn.disabled = true;
+
+  try {
+    const res = await ipcRenderer.invoke('rpc-call', {
+      url: currentWalletRpcUrl,
+      method: 'transfer',
+      params: {
+        destinations: [{ amount: atomicAmount, address }],
+        priority
+      }
+    });
+
+    if (res.success && res.data) {
+      const txHash = res.data.tx_hash || res.data.txid || '';
+      showToast('success', `Transaction sent! TX Hash: ${txHash.substring(0, 16)}...`);
+      document.getElementById('sendAddress').value = '';
+      document.getElementById('sendAmount').value = '';
+      await loadTransactions();
+      await updateDashboard();
+      switchTab('history');
+    } else {
+      showToast('error', 'Failed to send transaction: ' + formatRpcError(res));
     }
-  });
-
-  if (res.success && res.data) {
-    const txHash = res.data.tx_hash || res.data.txid || '';
-    showToast('success', `Transaction sent! TX Hash: ${txHash.substring(0, 16)}...`);
-    document.getElementById('sendAddress').value = '';
-    document.getElementById('sendAmount').value = '';
-    await loadTransactions();
-    await updateDashboard();
-    switchTab('history');
-  } else {
-    showToast('error', 'Failed to send transaction: ' + formatRpcError(res));
+  } finally {
+    isSendingTransaction = false;
+    if (sendBtn) sendBtn.disabled = false;
   }
 }
 
@@ -533,7 +618,7 @@ function renderTransactions() {
     }
 
     const typeLabel = isPending ? 'Pending Transfer' : (isIn ? 'Received VLT' : `Sent VLT${recipientShort}`);
-    const amountStr = ((tx.amount || 0) / 1e12).toFixed(6);
+    const amountStr = formatAtomicToVlt(tx.amount || 0);
     const dateStr = tx.timestamp ? new Date(tx.timestamp * 1000).toLocaleString() : `Block #${tx.height || 0}`;
     const txHash = tx.txid || tx.tx_hash || '';
     const shortHash = txHash ? `${txHash.substring(0, 12)}...${txHash.substring(txHash.length - 8)}` : 'N/A';
@@ -574,12 +659,14 @@ async function sendMax() {
       params: { account_index: 0 }
     });
     if (resBal.success && resBal.data) {
+      const priority = parseInt(document.getElementById('sendPriority').value) || 1;
+      const feeVlt = calcFeeVlt(priority);
       const unlockedAtomic = resBal.data.unlocked_balance || 0;
-      const estimatedFeeAtomic = 120000000; // 0.000120 VLT fee buffer
+      const estimatedFeeAtomic = Math.round(parseFloat(feeVlt) * 1e12);
       const maxAtomic = Math.max(0, unlockedAtomic - estimatedFeeAtomic);
       const maxVlt = (maxAtomic / 1e12).toFixed(6);
       document.getElementById('sendAmount').value = maxVlt;
-      showToast('info', `Send Max calculated: ${maxVlt} VLT (0.00012 VLT fee reserved)`);
+      showToast('info', `Send Max calculated: ${maxVlt} VLT (${feeVlt} VLT fee reserved)`);
     }
   } catch (err) {
     showToast('error', 'Error calculating Send Max: ' + err.message);
@@ -645,7 +732,7 @@ async function exportTransactionsCsv() {
   const headers = ['Type', 'Amount (VLT)', 'Tx Hash', 'Block Height', 'Confirmations', 'Timestamp'];
   const rows = allTransactions.map(tx => [
     tx.type,
-    ((tx.amount || 0) / 1e12).toFixed(6),
+    formatAtomicToVlt(tx.amount || 0),
     tx.txid || tx.tx_hash || '',
     tx.height || 0,
     tx.confirmations || 0,
@@ -751,7 +838,7 @@ async function checkIncomingTxNotifications() {
     if (previousTxCount > 0 && allTransactions.length > previousTxCount) {
       const latestTx = allTransactions[0];
       if (latestTx.type === 'in') {
-        const amt = ((latestTx.amount || 0) / 1e12).toFixed(6);
+        const amt = formatAtomicToVlt(latestTx.amount || 0);
         ipcRenderer.invoke('show-notification', {
           title: '📥 Incoming Payment Received!',
           body: `Received +${amt} VLT in block #${latestTx.height || 'Pending'}`
@@ -762,13 +849,17 @@ async function checkIncomingTxNotifications() {
   }
 }
 
+function calcFeeVlt(priority) {
+  const baseFee = 0.000120;
+  const multiplier = priority === 1 ? 1.0 : (priority === 2 ? 2.5 : 5.0);
+  return (baseFee * multiplier).toFixed(6);
+}
+
 function updateFeePreview() {
   const priority = parseInt(document.getElementById('sendPriority').value) || 1;
   const amountVlt = parseFloat(document.getElementById('sendAmount').value) || 0;
 
-  const baseFee = 0.000120;
-  const multiplier = priority === 1 ? 1.0 : (priority === 2 ? 2.5 : 5.0);
-  const estimatedFee = (baseFee * multiplier).toFixed(6);
+  const estimatedFee = calcFeeVlt(priority);
 
   const priorityLabels = {
     1: 'Normal Priority • Estimated confirmation: ~1 block (60s)',

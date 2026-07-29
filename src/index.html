@@ -145,7 +145,7 @@
           <div class="card">
             <h3>Chain Status</h3>
             <div class="info-row"><span class="info-label">Block Target</span><span class="info-val">60 Seconds</span></div>
-            <div class="info-row"><span class="info-label">RPC Endpoint</span><span class="info-val">https://node.vaultapp.space</span></div>
+            <div class="info-row"><span class="info-label">RPC Endpoint</span><span class="info-val" id="deskExpRpcEndpoint">https://node.vaultapp.space</span></div>
             <div class="info-row"><span class="info-label">Protocol Version</span><span class="info-val">Cryptonote v1.0</span></div>
           </div>
         </div>
@@ -210,7 +210,7 @@
             <div class="fee-preview-sub" id="feeEstimateSub">Normal Priority &bull; Estimated confirmation: ~1 block (60s)</div>
           </div>
 
-          <button class="btn-primary mt-16" onclick="sendTransaction()">Send Transaction</button>
+          <button class="btn-primary mt-16" id="btnSendTransaction" onclick="sendTransaction()">Send Transaction</button>
         </div>
       </div>
 
@@ -396,7 +396,7 @@
           </div>
 
           <div class="auto-save-banner">
-            💾 <strong>Auto-Saved to Desktop:</strong> Phrase saved to <code>~/Desktop/vault_wallet_recovery.txt</code>
+            💾 <strong>Auto-Saved to Desktop:</strong> Phrase saved to a file named <code>vault_wallet_recovery_...</code> on your Desktop
           </div>
 
           <div class="form-group mt-16">

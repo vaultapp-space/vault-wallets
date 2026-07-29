@@ -22,38 +22,29 @@ function getDaemonBinaryPath() {
   const daemonName = `vaultd${ext}`;
   const walletRpcName = `vault-wallet-rpc${ext}`;
 
-  // 1. Check workspace daemon/ folder first
-  const devDaemon = path.join(__dirname, 'daemon', daemonName);
-  const devWalletRpc = path.join(__dirname, 'daemon', walletRpcName);
-  if (fs.existsSync(devDaemon)) {
-    return {
-      daemon: devDaemon,
-      walletRpc: fs.existsSync(devWalletRpc) ? devWalletRpc : devWalletRpc
-    };
-  }
+  // Resolve each binary independently through the same priority chain:
+  // workspace daemon/ folder (dev) -> userData/daemon/ -> packaged resources.
+  // Resolving them together previously meant a stale userData copy of one
+  // binary (e.g. from an older release) could mask the correctly-bundled
+  // copy of the *other* binary, silently falling back to a dev-only path
+  // that doesn't exist in a packaged app.
+  function resolveBinary(name) {
+    const devPath = path.join(__dirname, 'daemon', name);
+    if (fs.existsSync(devPath)) return devPath;
 
-  // 2. Check user data directory (<userData>/daemon/)
-  const userDirDaemon = path.join(app.getPath('userData'), 'daemon', daemonName);
-  const userDirWalletRpc = path.join(app.getPath('userData'), 'daemon', walletRpcName);
-  if (fs.existsSync(userDirDaemon)) {
-    return {
-      daemon: userDirDaemon,
-      walletRpc: fs.existsSync(userDirWalletRpc) ? userDirWalletRpc : devWalletRpc
-    };
-  }
+    const userDirPath = path.join(app.getPath('userData'), 'daemon', name);
+    if (fs.existsSync(userDirPath)) return userDirPath;
 
-  // 3. Check packaged folder
-  if (isPackaged) {
-    const resourcePath = process.resourcesPath;
-    return {
-      daemon: path.join(resourcePath, 'daemon', daemonName),
-      walletRpc: path.join(resourcePath, 'daemon', walletRpcName)
-    };
+    if (isPackaged) {
+      return path.join(process.resourcesPath, 'daemon', name);
+    }
+
+    return devPath;
   }
 
   return {
-    daemon: devDaemon,
-    walletRpc: devWalletRpc
+    daemon: resolveBinary(daemonName),
+    walletRpc: resolveBinary(walletRpcName)
   };
 }
 
@@ -83,6 +74,11 @@ function startDaemon() {
       '--rpc-bind-port', String(LOCAL_RPC_PORT),
       '--p2p-bind-port', '0',
       '--add-priority-node', 'node.vaultapp.space:29080',
+      // The binary's embedded fast-sync checkpoint data doesn't match this
+      // chain's real block hashes (verified: every real peer connection gets
+      // dropped with "Most blocks are invalid" during the initial handshake
+      // unless this is disabled), so real P2P sync requires full validation.
+      '--fast-block-sync', '0',
       '--non-interactive',
       '--log-level', '1'
     ], {
@@ -273,9 +269,8 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
 }
 
 // ─── Auto-Download Local Daemon Binary If Missing ─────────
-async function ensureDaemonBinaryExists() {
-  const paths = getDaemonBinaryPath();
-  if (fs.existsSync(paths.daemon)) {
+async function ensureBinaryExists(binaryName, localPath, releaseAssetName) {
+  if (fs.existsSync(localPath)) {
     return true;
   }
 
@@ -285,31 +280,31 @@ async function ensureDaemonBinaryExists() {
   }
 
   const platform = process.platform;
-  const ext = platform === 'win32' ? '.exe' : '';
-  const daemonName = `vaultd${ext}`;
-  const targetFile = path.join(userDaemonDir, daemonName);
-
-  const releaseUrls = {
-    win32: 'https://github.com/vaultapp-space/VAULT/releases/download/v1.0.0/vaultd.exe',
-    linux: 'https://github.com/vaultapp-space/VAULT/releases/download/v1.0.0/vaultd',
-    darwin: 'https://github.com/vaultapp-space/VAULT/releases/download/v1.0.0/vaultd'
-  };
-
-  const downloadUrl = releaseUrls[platform];
-  if (!downloadUrl) return false;
+  const targetFile = path.join(userDaemonDir, binaryName);
+  const downloadUrl = `https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.1/${releaseAssetName}`;
 
   try {
-    console.log(`[VAULT] Auto-downloading local daemon binary for ${platform}...`);
+    console.log(`[VAULT] Auto-downloading ${binaryName} for ${platform}...`);
     const res = await fetch(downloadUrl);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const buffer = await res.arrayBuffer();
     fs.writeFileSync(targetFile, Buffer.from(buffer), { mode: 0o755 });
-    console.log(`[VAULT] Local daemon binary saved to: ${targetFile}`);
+    console.log(`[VAULT] ${binaryName} saved to: ${targetFile}`);
     return true;
   } catch (err) {
-    console.error(`[VAULT] Auto-download daemon error:`, err.message);
+    console.error(`[VAULT] Auto-download ${binaryName} error:`, err.message);
     return false;
   }
+}
+
+async function ensureDaemonBinaryExists() {
+  const paths = getDaemonBinaryPath();
+  const platform = process.platform;
+  const ext = platform === 'win32' ? '.exe' : '';
+
+  const daemonOk = await ensureBinaryExists(`vaultd${ext}`, paths.daemon, `vaultd${ext}`);
+  const walletRpcOk = await ensureBinaryExists(`vault-wallet-rpc${ext}`, paths.walletRpc, `vault-wallet-rpc${ext}`);
+  return daemonOk && walletRpcOk;
 }
 
 // ─── Window Creation ───────────────────────────────────────
@@ -331,76 +326,23 @@ function createWindow() {
   mainWindow.setMenuBarVisibility(false);
 }
 
-let syncLoopTimer = null;
-let isSyncingBlocks = false;
-
-async function syncLocalBlockchainLoop() {
-  if (isSyncingBlocks) return;
-  isSyncingBlocks = true;
-
-  try {
-    const localRes = await fetch(`http://127.0.0.1:${LOCAL_RPC_PORT}/json_rpc`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: '0', method: 'get_info' })
-    }).then(r => r.json()).catch(() => null);
-
-    const remoteRes = await fetch(`${REMOTE_NODE_URL}/json_rpc`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: '0', method: 'get_info' })
-    }).then(r => r.json()).catch(() => null);
-
-    if (localRes && localRes.result && remoteRes && remoteRes.result) {
-      const localH = localRes.result.height || 0;
-      const remoteH = remoteRes.result.height || 0;
-
-      if (localH < remoteH) {
-        console.log(`[VAULT Sync] Local height: ${localH}, Remote height: ${remoteH}. Catching up...`);
-        const batchSize = Math.min(30, remoteH - localH);
-        for (let h = localH; h < localH + batchSize; h++) {
-          const blockRes = await fetch(`${REMOTE_NODE_URL}/json_rpc`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jsonrpc: '2.0', id: '0', method: 'get_block', params: { height: h } })
-          }).then(r => r.json()).catch(() => null);
-
-          if (blockRes && blockRes.result && blockRes.result.blob) {
-            const subRes = await fetch(`http://127.0.0.1:${LOCAL_RPC_PORT}/json_rpc`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ jsonrpc: '2.0', id: '0', method: 'submit_block', params: [blockRes.result.blob] })
-            }).then(r => r.json()).catch(() => null);
-            if (subRes && subRes.result && subRes.result.status === 'OK') {
-              console.log(`[VAULT Sync] Successfully synced block #${h}`);
-            }
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.error('[VAULT Sync Error]', err.message);
-  } finally {
-    isSyncingBlocks = false;
-  }
-}
+// Blockchain sync is handled by vaultd's own native P2P protocol (see
+// --add-priority-node in startDaemon()) — this is standard, well-tested
+// daemon code, unlike a hand-rolled HTTP block-relay loop.
 
 app.whenReady().then(async () => {
   await ensureDaemonBinaryExists();
   startDaemon();
   setTimeout(() => startWalletRpc(), 3000);
-  syncLoopTimer = setInterval(syncLocalBlockchainLoop, 2000);
   createWindow();
 });
 
 app.on('window-all-closed', () => {
-  if (syncLoopTimer) clearInterval(syncLoopTimer);
   stopDaemonProcesses();
   if (process.platform !== 'darwin') app.quit();
 });
 
 app.on('before-quit', () => {
-  if (syncLoopTimer) clearInterval(syncLoopTimer);
   stopDaemonProcesses();
 });
 
@@ -414,15 +356,18 @@ app.on('activate', () => {
 // IPC Handler: Save Seed Phrase to Desktop
 ipcMain.handle('save-recovery-seed', async (event, { address, seed }) => {
   try {
-    const desktopPath = path.join(os.homedir(), 'Desktop', 'vault_wallet_recovery.txt');
+    const shortAddr = address ? address.substring(0, 10) : 'unknown';
+    const desktopPath = path.join(os.homedir(), 'Desktop', `vault_wallet_recovery_${shortAddr}_${Date.now()}.txt`);
     const content = `========================================================\n` +
-      `VAULT WALLET RECOVERY PHRASE\n` +
+      `VAULT WALLET RECOVERY PHRASE — PLAINTEXT, NOT ENCRYPTED\n` +
+      `Anyone with access to this file can spend this wallet's funds.\n` +
+      `Move it to secure offline storage and delete it from this folder.\n` +
       `Generated on: ${new Date().toISOString()}\n` +
       `Address     : ${address}\n` +
       `Seed Phrase : ${seed}\n` +
-      `========================================================\n\n`;
+      `========================================================\n`;
 
-    fs.appendFileSync(desktopPath, content, 'utf8');
+    fs.writeFileSync(desktopPath, content, 'utf8');
     return { success: true, path: desktopPath };
   } catch (err) {
     return { success: false, error: err.message };
@@ -445,7 +390,9 @@ ipcMain.handle('save-csv', async (event, { filename, content }) => {
 ipcMain.handle('export-wallet-backup', async (event, { seed, address }) => {
   try {
     const backupPath = path.join(os.homedir(), 'Desktop', `vault_backup_${Date.now()}.txt`);
-    const content = `VAULT ENCRYPTED WALLET BACKUP\n` +
+    const content = `VAULT WALLET BACKUP — PLAINTEXT, NOT ENCRYPTED\n` +
+      `Anyone with access to this file can spend this wallet's funds.\n` +
+      `Move it to secure offline storage and delete it from this folder.\n` +
       `Date: ${new Date().toLocaleString()}\n` +
       `Address: ${address}\n` +
       `25-Word Mnemonic Seed: ${seed}\n`;
