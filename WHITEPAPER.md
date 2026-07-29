@@ -83,12 +83,12 @@ The receiver scans the blockchain using their Private View Key ($b$). Only the i
 | **Target Block Time** | `60 seconds` |
 | **Initial Block Reward** | `~17.578350 VLT` per block (`17,578,350,278,193` atomic units) |
 | **Atomic Unit Divisor** | $10^{12}$ (1 VLT = 1,000,000,000,000 atomic units) |
-| **Block Confirmation Lock** | `60 blocks` (~60 minutes for mined block maturity) |
+| **Block Confirmation Lock** | `60 blocks` (~60 minutes for block maturity) |
 | **Default P2P Port** | `29080` |
 | **Daemon RPC Port** | `29081` |
 | **Wallet RPC Port** | `29083` |
 | **Block Explorer Web Port**| `3000` |
-| **Consensus Algorithm** | CPU-optimized CryptoNote / RandomX Proof-of-Work (PoW) |
+| **Consensus Algorithm** | CryptoNote / RandomX Proof-of-Work (PoW) |
 
 ---
 
