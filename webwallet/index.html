@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VAULT Web Wallet — https://webwallet.vaultapp.space</title>
+  <meta name="description" content="Official secure web wallet for VAULT (VLT) cryptocurrency. Create, restore, send, and receive VLT securely in your web browser.">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <!-- QRCode.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header / Navigation -->
+    <header class="navbar">
+      <div class="brand">
+        <div class="logo-icon">🔒</div>
+        <div class="brand-text">
+          <span class="brand-name">VAULT</span>
+          <span class="brand-badge">WEB WALLET</span>
+        </div>
+      </div>
+
+      <div class="node-status-bar">
+        <span class="status-dot green" id="nodeDot"></span>
+        <span id="nodeLabel" class="node-label">Connected to Remote Node (node.vaultapp.space)</span>
+        <span class="height-badge">Block #<span id="headerNetHeight">0</span></span>
+      </div>
+
+      <div class="header-actions">
+        <button id="btnSwitchWallet" class="btn btn-outline" onclick="openWalletModal()">
+          <span class="icon">🔑</span> Switch / Create Wallet
+        </button>
+      </div>
+    </header>
+
+    <!-- Main App Content -->
+    <main class="main-content">
+      <!-- Balance Card Summary -->
+      <section class="balance-card-grid">
+        <div class="glass-card balance-primary">
+          <div class="card-header">
+            <span class="card-title">TOTAL BALANCE</span>
+            <span class="currency-tag">VLT</span>
+          </div>
+          <div class="balance-value-container">
+            <span id="balanceTotal" class="balance-amount">0.000000</span>
+            <span class="unit">VLT</span>
+          </div>
+          <div class="sub-balances">
+            <div class="sub-balance-item">
+              <span class="sub-label">Unlocked:</span>
+              <span id="balanceUnlocked" class="sub-val">0.000000 VLT</span>
+            </div>
+            <div class="sub-balance-item">
+              <span class="sub-label">Locked / Pending:</span>
+              <span id="balanceLocked" class="sub-val">0.000000 VLT</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-card wallet-address-card">
+          <div class="card-header">
+            <span class="card-title">YOUR VAULT ADDRESS</span>
+            <button class="btn-icon-link" onclick="copyActiveAddress()" title="Copy Address">📋 Copy</button>
+          </div>
+          <div id="quickAddress" class="address-display">d5...</div>
+          <div class="address-footer">
+            <span id="currentWalletName" class="wallet-tag">Primary Wallet</span>
+            <span id="syncPercentText" class="sync-tag">100% Synced</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Navigation Tabs -->
+      <nav class="tab-nav">
+        <button class="nav-item active" data-tab="overview" onclick="switchTab('overview')">
+          <span class="tab-icon">📊</span> Overview
+        </button>
+        <button class="nav-item" data-tab="send" onclick="switchTab('send')">
+          <span class="tab-icon">💸</span> Send VLT
+        </button>
+        <button class="nav-item" data-tab="receive" onclick="switchTab('receive')">
+          <span class="tab-icon">📥</span> Receive VLT
+        </button>
+        <button class="nav-item" data-tab="history" onclick="switchTab('history')">
+          <span class="tab-icon">📜</span> Transactions
+        </button>
+      </nav>
+
+      <!-- Tab Content Area -->
+      <div class="tab-content">
+        <!-- Tab: Overview -->
+        <div id="tab-overview" class="tab-view active">
+          <div class="overview-grid">
+            <div class="glass-card stat-box">
+              <span class="stat-label">Network Height</span>
+              <span id="netHeight" class="stat-value">0</span>
+            </div>
+            <div class="glass-card stat-box">
+              <span class="stat-label">Network Difficulty</span>
+              <span id="netDifficulty" class="stat-value">0</span>
+            </div>
+            <div class="glass-card stat-box">
+              <span class="stat-label">Network Hashrate</span>
+              <span id="netHashrate" class="stat-value">0 H/s</span>
+            </div>
+            <div class="glass-card stat-box">
+              <span class="stat-label">Network Status</span>
+              <span id="netStatusText" class="stat-value text-green">Online (node.vaultapp.space)</span>
+            </div>
+          </div>
+
+          <!-- Quick Action Banner -->
+          <div class="glass-card action-banner">
+            <div class="banner-text">
+              <h3>Secure Cloud & Web Storage</h3>
+              <p>Your web wallet communicates directly with the decentralized VAULT node network over encrypted SSL HTTPS connections.</p>
+            </div>
+            <div class="banner-btns">
+              <button class="btn btn-primary" onclick="switchTab('send')">Send Payment</button>
+              <button class="btn btn-secondary" onclick="switchTab('receive')">Receive VLT</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Send VLT -->
+        <div id="tab-send" class="tab-view">
+          <div class="glass-card form-card">
+            <h2>Send VAULT Coins</h2>
+            <p class="form-desc">Transfer VLT instantly to any valid VAULT wallet address.</p>
+
+            <div class="form-group">
+              <label for="sendAddress">Recipient VAULT Address (starts with d5)</label>
+              <input type="text" id="sendAddress" class="form-control mono" placeholder="d5HgFkAXMKSN8HTEHRn3ynB9qz4EarbESgwCt61BzZbv6XhjMjWag3CYSskegJduPtHNFbTjzkDmnWxsGn2Enfej4nfzx6J6FY">
+            </div>
+
+            <div class="form-row">
+              <div class="form-group col">
+                <label for="sendAmount">Amount (VLT)</label>
+                <input type="number" id="sendAmount" class="form-control" placeholder="0.00" step="0.000001" min="0.000001">
+              </div>
+              <div class="form-group col">
+                <label for="sendPriority">Priority / Speed</label>
+                <select id="sendPriority" class="form-control">
+                  <option value="1">Normal (Standard Network Fee)</option>
+                  <option value="2">Elevated (Faster Confirmations)</option>
+                  <option value="3">High Priority (Fastest)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="fee-preview-box">
+              <span>Estimated Network Fee:</span>
+              <span id="previewFeeText">~0.000120 VLT</span>
+            </div>
+
+            <button class="btn btn-primary btn-block btn-lg" onclick="openSendConfirmModal()">
+              <span class="icon">🚀</span> Confirm & Send Transaction
+            </button>
+          </div>
+        </div>
+
+        <!-- Tab: Receive VLT -->
+        <div id="tab-receive" class="tab-view">
+          <div class="glass-card receive-card">
+            <h2>Receive VAULT Coins</h2>
+            <p class="form-desc">Share your wallet address or QR code to receive payments from anyone on the VAULT network.</p>
+
+            <div class="qr-container">
+              <canvas id="qrCanvas"></canvas>
+            </div>
+
+            <div class="full-address-box">
+              <span id="fullAddress" class="full-address mono">d5...</span>
+            </div>
+
+            <div class="receive-actions">
+              <button class="btn btn-primary" onclick="copyActiveAddress()">
+                <span class="icon">📋</span> Copy Full Address
+              </button>
+              <button class="btn btn-secondary" onclick="exportBackupFile()">
+                <span class="icon">💾</span> Backup Wallet Seed
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Transaction History -->
+        <div id="tab-history" class="tab-view">
+          <div class="glass-card history-card">
+            <div class="history-header">
+              <h2>Transaction History</h2>
+              <button class="btn btn-outline btn-sm" onclick="loadTransactions()">
+                <span class="icon">🔄</span> Refresh
+              </button>
+            </div>
+
+            <div class="table-responsive">
+              <table class="tx-table">
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Tx Hash</th>
+                    <th>Block Height</th>
+                    <th>Amount (VLT)</th>
+                    <th>Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody id="txTableBody">
+                  <tr>
+                    <td colspan="5" class="table-empty">No transactions found for this wallet address.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-links">
+        <a href="https://vaultapp.space" target="_blank" rel="noopener">Official Website</a>
+        <a href="https://explorer.vaultapp.space" target="_blank" rel="noopener">Blockchain Explorer</a>
+        <a href="https://node.vaultapp.space" target="_blank" rel="noopener">Node RPC</a>
+      </div>
+      <div class="footer-copy">
+        © 2026 VAULT Core Team. All Rights Reserved. Protected by End-to-End Cryptography.
+      </div>
+    </footer>
+  </div>
+
+  <!-- Modal: Create / Restore Wallet Wizard -->
+  <div id="walletModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalTitle">VAULT Wallet Setup</h3>
+        <button class="btn-close" onclick="closeWalletModal()">×</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Step 1: Choice -->
+        <div id="stepChoice" class="step-view">
+          <p class="modal-desc">Create a new secure VAULT wallet or restore an existing one using your 25-word recovery phrase.</p>
+          <div class="choice-grid">
+            <button class="choice-card" onclick="startCreateWallet()">
+              <div class="choice-icon">✨</div>
+              <h4>Create New Wallet</h4>
+              <p>Generate a new 25-word mnemonic seed phrase and private keys.</p>
+            </button>
+            <button class="choice-card" onclick="showStepRestore()">
+              <div class="choice-icon">📥</div>
+              <h4>Restore Wallet</h4>
+              <p>Enter an existing 25-word recovery seed to restore your funds.</p>
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2: New Seed Phrase Display -->
+        <div id="stepNewSeed" class="step-view" style="display: none;">
+          <p class="modal-desc">Write down your 25-word recovery phrase in a safe place. Never share it with anyone!</p>
+          <div id="seedWordGrid" class="seed-grid"></div>
+          <div class="new-address-preview">
+            <span class="label">Your New Address:</span>
+            <span id="newWalletAddr" class="value mono">d5...</span>
+          </div>
+          <div class="modal-footer-btns">
+            <button class="btn btn-secondary" onclick="downloadBackupText()">💾 Download Backup File</button>
+            <button class="btn btn-primary" onclick="finishCreateWallet()">Done / Open Wallet</button>
+          </div>
+        </div>
+
+        <!-- Step 3: Restore Seed Input -->
+        <div id="stepRestore" class="step-view" style="display: none;">
+          <p class="modal-desc">Enter your 25-word mnemonic seed phrase separated by spaces.</p>
+          <div class="form-group">
+            <textarea id="restoreSeedInput" class="form-control mono" rows="4" placeholder="[REDACTED-COMPROMISED-SEED-PHRASE]..."></textarea>
+          </div>
+          <div class="modal-footer-btns">
+            <button class="btn btn-secondary" onclick="showStepChoice()">Back</button>
+            <button class="btn btn-primary" onclick="finishRestoreWallet()">Restore & Sync Wallet</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Send Confirmation -->
+  <div id="confirmModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Confirm Payment</h3>
+        <button class="btn-close" onclick="closeConfirmModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="confirm-details">
+          <div class="confirm-row">
+            <span class="confirm-label">Recipient Address:</span>
+            <span id="confirmRecipient" class="confirm-value mono">d5...</span>
+          </div>
+          <div class="confirm-row">
+            <span class="confirm-label">Amount:</span>
+            <span id="confirmAmount" class="confirm-value text-gold">0 VLT</span>
+          </div>
+          <div class="confirm-row">
+            <span class="confirm-label">Estimated Fee:</span>
+            <span id="confirmFee" class="confirm-value">0.000120 VLT</span>
+          </div>
+        </div>
+        <p class="warning-text">⚠️ Transactions are irreversible on the VAULT blockchain. Please double-check the recipient address.</p>
+        <div class="modal-footer-btns">
+          <button class="btn btn-secondary" onclick="closeConfirmModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="executeSendTransaction()">Confirm & Broadcast</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- JavaScript -->
+  <script src="app.js"></script>
+</body>
+</html>

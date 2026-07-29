@@ -21,7 +21,7 @@ VAULT is an untraceable, privacy-centric cryptocurrency built on CryptoNote and 
 - **𝕏 / Twitter**: [@VaultMessenger](https://x.com/VaultMessenger)
 - **💬 Telegram Community**: [@Vault_Space](https://t.me/Vault_Space)
 - **👾 Discord Server**: [Join Discord Community](https://discord.gg/VZyvT)
-- **🔍 Block Explorer**: [http://8.229.216.134:3000](http://8.229.216.134:3000)
+- **🔍 Block Explorer**: [https://explorer.vaultapp.space](https://explorer.vaultapp.space)
 - **⚙️ C++ Daemon Repository**: [https://github.com/vaultapp-space/VAULT](https://github.com/vaultapp-space/VAULT)
 
 ---
@@ -58,7 +58,6 @@ The VAULT GUI Wallet features a **Pure Pitch Black Theme (`#000000`)** designed 
   - **QR Code Generator**: Generates 2D QR codes for instant mobile receiving.
 - **📖 Address Book & Contacts**: Save frequently used recipient addresses with custom labels for one-click transfers.
 - **📜 Transaction History & CSV Export**: Real-time transfer history with filter controls (All/Received/Sent/Pending) and one-click **"Export CSV"** to Desktop.
-- **⛏️ Solo CPU Mining Dashboard**: Configure CPU thread count (1–14 threads) and monitor live hashrate (**~476 H/s**).
 - **🔒 Security & Backup Tool**: Retrieve 25-word Electrum recovery seed phrases and export encrypted wallet backups directly to your Desktop.
 - **🔔 Native Desktop Notifications**: macOS and Windows system notifications for incoming payments.
 

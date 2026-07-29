@@ -36,9 +36,6 @@
         <button class="nav-item" data-tab="contacts" onclick="switchTab('contacts')">
           <span class="nav-icon">📖</span> Address Book
         </button>
-        <button class="nav-item" data-tab="mining" onclick="switchTab('mining')">
-          <span class="nav-icon">⛏️</span> Mining
-        </button>
         <button class="nav-item" data-tab="settings" onclick="switchTab('settings')">
           <span class="nav-icon">⚙️</span> Node Settings
         </button>
@@ -222,31 +219,7 @@
         </div>
       </div>
 
-      <!-- Mining View -->
-      <div class="tab-view" id="tab-mining">
-        <div class="card max-w-600">
-          <h2>Solo CPU Mining (Local Device)</h2>
-          <p class="subtitle">Mine block rewards directly on your local computer's CPU into your active VAULT address.</p>
 
-          <div style="margin-bottom: 16px; padding: 12px 14px; border-radius: 8px; font-size: 12px; background: rgba(0, 242, 254, 0.06); border: 1px solid rgba(0, 242, 254, 0.2); color: #00f2fe; line-height: 1.5;">
-            ⚡ <strong>Local Daemon Required:</strong> Solo CPU mining connects directly to a local daemon (<code>vaultd</code>) running on <code>127.0.0.1:29081</code>.
-          </div>
-
-          <div class="form-group">
-            <div class="label-with-btn">
-              <label>CPU Threads</label>
-              <span class="text-muted" id="deviceCoreInfo">Detected: 8 CPU Cores</span>
-            </div>
-            <input type="number" id="miningThreads" value="7" min="1" max="64">
-          </div>
-
-          <div class="mining-status-card" id="miningStatusCard">
-            <span class="status-dot red" id="miningDot"></span>
-            <span id="miningStatusText">Status: Stopped (0 H/s)</span>
-          </div>
-          <button class="btn-primary mt-16" id="btnToggleMining" onclick="toggleMining()">Start Mining</button>
-        </div>
-      </div>
 
       <!-- Settings View -->
       <div class="tab-view" id="tab-settings">

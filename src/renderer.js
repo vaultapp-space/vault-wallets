@@ -8,7 +8,6 @@ const LOCAL_WALLET_RPC_URL = 'http://127.0.0.1:29083/json_rpc';
 let currentDaemonUrl = REMOTE_DAEMON_URL;
 let currentWalletRpcUrl = `${REMOTE_DAEMON_URL.replace('/json_rpc', '/wallet_rpc')}`;
 let activeAddress = '';
-let isLocalDeviceMiningActive = false;
 let currentSeedPhrase = '';
 
 const electrumWordList = [
@@ -163,7 +162,6 @@ async function finishRestoreWallet() {
   });
 
   if (res.success && res.data) {
-    isLocalDeviceMiningActive = false;
     setAddress(res.data.address || activeAddress);
     document.getElementById('currentWalletName').innerText = restoredFilename;
     closeWalletModal();
@@ -301,19 +299,7 @@ async function updateDashboard() {
       document.getElementById('syncBarFill').style.width = '0%';
     }
 
-    // Query daemon /mining_status for live hashrate and active thread count only if local mining was started on this device
-    const daemonBaseUrl = getMiningTargetUrl();
-    const resMining = await ipcRenderer.invoke('http-post', {
-      url: daemonBaseUrl + '/mining_status',
-      body: {}
-    });
 
-    if (resMining.success && resMining.data && isLocalDeviceMiningActive) {
-      const m = resMining.data;
-      updateMiningUI(true, m.speed || 0, m.threads_count || 0);
-    } else {
-      updateMiningUI(false, 0, 0);
-    }
 
     const resBal = await ipcRenderer.invoke('rpc-call', {
       url: currentWalletRpcUrl,
@@ -389,81 +375,7 @@ async function sendTransaction() {
   }
 }
 
-function initDeviceCoreCount() {
-  const cores = navigator.hardwareConcurrency || 4;
-  const coreEl = document.getElementById('deviceCoreInfo');
-  const threadInput = document.getElementById('miningThreads');
 
-  if (coreEl) coreEl.innerText = `This Device: ${cores} CPU Cores`;
-  if (threadInput && (!threadInput.value || parseInt(threadInput.value) > cores)) {
-    threadInput.value = Math.max(1, cores - 1);
-  }
-}
-
-function getMiningTargetUrl() {
-  return 'http://127.0.0.1:29081';
-}
-
-async function toggleMining() {
-  const threads = parseInt(document.getElementById('miningThreads').value) || 2;
-  const daemonBaseUrl = getMiningTargetUrl();
-
-  if (!isLocalDeviceMiningActive) {
-    if (!activeAddress || !activeAddress.startsWith('d5')) {
-      showToast('error', 'Please create or restore a wallet first to set your reward address.');
-      openWalletModal();
-      return;
-    }
-
-    const res = await ipcRenderer.invoke('http-post', {
-      url: daemonBaseUrl + '/start_mining',
-      body: {
-        do_background_mining: false,
-        ignore_battery: true,
-        miner_address: activeAddress,
-        threads_count: threads
-      }
-    });
-
-    const isOk = res.success && res.data && (res.data.status === 'OK' || res.data.status === 'BUSY');
-    if (isOk) {
-      isLocalDeviceMiningActive = true;
-      updateMiningUI(true, 0, threads);
-      showToast('success', `Local Solo Mining started on ${threads} CPU threads!`);
-    } else {
-      showToast('error', 'Failed to start local mining: ' + formatRpcError(res));
-    }
-  } else {
-    try {
-      await ipcRenderer.invoke('http-post', {
-        url: daemonBaseUrl + '/stop_mining',
-        body: {}
-      });
-    } catch (e) {}
-
-    isLocalDeviceMiningActive = false;
-    updateMiningUI(false, 0, 0);
-    showToast('info', 'Local Mining stopped.');
-  }
-  updateDashboard();
-}
-
-function updateMiningUI(active, speed, threads) {
-  const dot = document.getElementById('miningDot');
-  const text = document.getElementById('miningStatusText');
-  const btn = document.getElementById('btnToggleMining');
-
-  if (active) {
-    dot.className = 'status-dot green';
-    const threadLabel = threads ? ` across ${threads} thread${threads > 1 ? 's' : ''}` : '';
-    text.innerText = `Status: Active (Local Device • ${speed || 0} H/s${threadLabel})`;
-    btn.innerText = 'Stop Mining';
-  } else {
-    dot.className = 'status-dot red';
-    text.innerText = 'Status: Stopped (Local Mining Idle)';
-    btn.innerText = 'Start Mining';
-  }
-}
 
 function saveNodeSettings() {
   const host = document.getElementById('nodeHost').value.trim();
@@ -897,7 +809,6 @@ fetchActiveAddress().then(async () => {
     url: currentWalletRpcUrl,
     method: 'rescan_blockchain'
   });
-  initDeviceCoreCount();
   loadContacts();
   loadSubaddresses();
   updateDashboard();
