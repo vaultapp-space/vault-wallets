@@ -2,7 +2,6 @@ const { app, BrowserWindow, ipcMain, shell, Notification } = require('electron')
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const crypto = require('crypto');
 const { spawn } = require('child_process');
 
 let mainWindow;
@@ -127,6 +126,10 @@ function startWalletRpc() {
   }
 
   try {
+    if (process.platform !== 'win32') {
+      try { fs.chmodSync(paths.walletRpc, 0o755); } catch (e) {}
+    }
+
     const walletDir = path.join(app.getPath('userData'), 'vault-wallets');
     if (!fs.existsSync(walletDir)) {
       fs.mkdirSync(walletDir, { recursive: true });
@@ -183,92 +186,17 @@ function stopDaemonProcesses() {
   }
 }
 
-// ─── Local Wallet Storage & Management ─────────────────────
-function getWalletStoragePath() {
-  const walletDir = path.join(app.getPath('userData'), 'vault-wallets');
-  if (!fs.existsSync(walletDir)) {
-    fs.mkdirSync(walletDir, { recursive: true });
-  }
-  return path.join(walletDir, 'active_wallet.json');
-}
-
-function loadLocalWalletData() {
-  try {
-    const file = getWalletStoragePath();
-    if (fs.existsSync(file)) {
-      return JSON.parse(fs.readFileSync(file, 'utf8'));
-    }
-  } catch (e) {}
-  return null;
-}
-
-function saveLocalWalletData(data) {
-  try {
-    const file = getWalletStoragePath();
-    fs.writeFileSync(file, JSON.stringify(data, null, 2));
-  } catch (e) {}
-}
-
-function generateRandomHex(length) {
-  const bytes = crypto.randomBytes(length / 2);
-  return bytes.toString('hex');
-}
-
-function generateNewVaultAddress() {
-  return 'd5' + generateRandomHex(94);
-}
-
-const SEED_WORDS = [
-  'abbey', 'abrupt', 'absent', 'absorb', 'abstract', 'absurd', 'accent', 'accept', 'access',
-  'accident', 'account', 'accuse', 'achieve', 'acid', 'acoustic', 'acquire', 'across', 'act',
-  'action', 'actor', 'actress', 'actual', 'adapt', 'add', 'addict', 'address', 'adjust',
-  'admit', 'adult', 'advance', 'advice', 'aerobic', 'afford', 'afraid', 'again', 'age',
-  'agent', 'agree', 'ahead', 'aim', 'air', 'airport', 'aisle', 'alarm', 'album', 'alcohol'
-];
-
-function generate25WordSeed() {
-  const words = [];
-  for (let i = 0; i < 25; i++) {
-    const idx = Math.floor(Math.random() * SEED_WORDS.length);
-    words.push(SEED_WORDS[idx]);
-  }
-  return words.join(' ');
-}
-
-// Helper to fetch live remote blockchain height
-async function getLiveNetworkHeight() {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000);
-    const res = await fetch(`${REMOTE_NODE_URL}/json_rpc`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: '0', method: 'get_info' }),
-      signal: controller.signal
-    });
-    clearTimeout(timer);
-    const data = await res.json();
-    if (data && data.result && data.result.height) {
-      return data.result.height;
-    }
-  } catch (e) {}
-  return 1317;
-}
-
 // ─── RPC Helper with Retry & Fallback ──────────────────────
 async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
   const walletMethods = ['get_address', 'get_balance', 'get_transfers', 'create_wallet', 'open_wallet', 'restore_deterministic_wallet', 'query_key', 'rescan_blockchain', 'transfer'];
   const isWalletCall = walletMethods.includes(method) || (targetUrl && targetUrl.includes('29083'));
 
   let localUrl = targetUrl;
-  let remoteUrl = targetUrl;
 
   if (targetUrl && (targetUrl.includes('127.0.0.1:29081') || targetUrl.includes('localhost:29081'))) {
     localUrl = `http://127.0.0.1:29081/json_rpc`;
-    remoteUrl = `${REMOTE_NODE_URL}/json_rpc`;
   } else if (targetUrl && (targetUrl.includes('127.0.0.1:29083') || targetUrl.includes('localhost:29083'))) {
     localUrl = `http://127.0.0.1:29083/json_rpc`;
-    remoteUrl = `${REMOTE_NODE_URL}/wallet_rpc`;
   }
 
   const timeoutMs = options.timeout || 8000;
@@ -296,195 +224,17 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
     }
   };
 
-  // 1. For Wallet RPC methods (get_balance, get_address, etc.), try local wallet RPC first, then fallback to local storage
+  // Wallet RPC methods must always reflect the real local wallet-rpc process —
+  // no fabricated balances/transactions. If it's unreachable, report the real error.
   if (isWalletCall) {
     try {
-      const localRes = await makeRequest(localUrl);
-      if (localRes && localRes.success && localRes.data && (localRes.data.balance > 0 || method === 'get_address')) {
-        return localRes;
-      }
-    } catch (err) {}
-
-    // Fallback Engine for Wallet RPC Methods (Reads/writes active_wallet.json on desktop)
-    let wallet = loadLocalWalletData();
-    if (!wallet) {
-      wallet = {
-        address: 'd5HgFkAXMKSN8HTEHRn3ynB9qz4EarbESgwCt61BzZbv6XhjMjWag3CYSskegJduPtHNFbTjzkDmnWxsGn2Enfej4nfzx6J6FY',
-        seed: '[REDACTED-COMPROMISED-SEED-PHRASE]',
-        balance: 13839576639080716,
-        unlocked_balance: 12792829256191000,
-        transfers: { in: [], out: [], pending: [] }
-      };
-      saveLocalWalletData(wallet);
-    }
-
-    if (method === 'get_address') {
-      return { success: true, data: { address: wallet.address, addresses: [{ address: wallet.address, address_index: 0 }] } };
-    }
-    if (method === 'get_balance') {
-      let currentH = await getLiveNetworkHeight();
-      if (params && params.height && params.height > currentH) {
-        currentH = params.height;
-      }
-
-      let totalIn = 0;
-      let unlockedIn = 0;
-      if (wallet.transfers && Array.isArray(wallet.transfers.in)) {
-        for (const tx of wallet.transfers.in) {
-          const amt = tx.amount || 0;
-          totalIn += amt;
-          const confs = tx.confirmations || (tx.height ? Math.max(1, currentH - tx.height + 1) : 0);
-          if (confs >= 10 || (tx.unlock_time && tx.unlock_time <= currentH) || (!tx.unlock_time && confs >= 1)) {
-            unlockedIn += amt;
-          }
-        }
-      }
-
-      let totalOutDebit = 0;
-      if (wallet.transfers && Array.isArray(wallet.transfers.out)) {
-        for (const tx of wallet.transfers.out) {
-          totalOutDebit += (tx.amount || 0) + (tx.fee || 0);
-        }
-      }
-
-      // Preserve stored wallet balance from active wallet data
-      let bal = (wallet.balance !== undefined && wallet.balance > 0) ? wallet.balance : (totalIn > 0 ? Math.max(0, totalIn - totalOutDebit) : 0);
-      let unlocked = (wallet.unlocked_balance !== undefined && wallet.unlocked_balance > 0) ? wallet.unlocked_balance : bal;
-
-      if (totalIn > 0) {
-        bal = Math.max(0, totalIn - totalOutDebit);
-        unlocked = Math.max(0, unlockedIn - totalOutDebit);
-      }
-
-      wallet.balance = Math.max(0, bal);
-      wallet.unlocked_balance = Math.max(0, unlocked);
-      saveLocalWalletData(wallet);
-
-      return { success: true, data: { balance: wallet.balance, unlocked_balance: wallet.unlocked_balance } };
-    }
-    if (method === 'get_transfers') {
-      let transfers = wallet.transfers || { in: [], out: [], pending: [] };
-      let currentH = await getLiveNetworkHeight();
-
-      const REWARD_PER_BLOCK = 17578350278193;
-
-      let outTransfers = transfers.out || [];
-      if (wallet.address === 'd5HgFkAXMKSN8HTEHRn3ynB9qz4EarbESgwCt61BzZbv6XhjMjWag3CYSskegJduPtHNFbTjzkDmnWxsGn2Enfej4nfzx6J6FY') {
-        const generatedIn = [];
-        const nowTs = Math.floor(Date.now() / 1000);
-        for (let h = currentH; h >= 1; h--) {
-          generatedIn.push({
-            address: wallet.address,
-            amount: REWARD_PER_BLOCK,
-            confirmations: Math.max(1, currentH - h + 1),
-            double_spend_seen: false,
-            fee: 0,
-            height: h,
-            note: 'Block Mining Reward',
-            payment_id: '0000000000000000',
-            subaddr_index: { major: 0, minor: 0 },
-            suggested_confirmations_threshold: 1,
-            timestamp: nowTs - ((currentH - h) * 60),
-            txid: '06a330d0884eafb2e1db5ca44bd255df64da11e57a3c58fbaa49f7db3840' + h.toString(16).padStart(4, '0'),
-            type: 'in',
-            unlock_time: h + 60
-          });
-        }
-
-        wallet.transfers = { in: wallet.transfers ? wallet.transfers.in : [], out: transfers.out || [], pending: [] };
-        saveLocalWalletData(wallet);
-
-        transfers = { in: generatedIn, out: wallet.transfers.out, pending: transfers.pending || [] };
-      } else {
-        if ((!transfers.in || transfers.in.length === 0) && wallet.balance && wallet.balance > 0) {
-          const totalInAmount = wallet.balance + (transfers.out ? transfers.out.reduce((acc, t) => acc + (t.amount || 0) + (t.fee || 0), 0) : 0);
-          const generatedIn = [{
-            address: wallet.address,
-            amount: totalInAmount,
-            confirmations: Math.max(1, currentH - 60),
-            double_spend_seen: false,
-            fee: 0,
-            height: Math.max(1, currentH - 60),
-            note: 'Incoming Transfer / Initial Deposit',
-            payment_id: '0000000000000000',
-            subaddr_index: { major: 0, minor: 0 },
-            suggested_confirmations_threshold: 1,
-            timestamp: Math.floor(Date.now() / 1000) - 3600,
-            txid: 'e1d84f09a842b1029c' + generateRandomHex(46),
-            type: 'in',
-            unlock_time: 0
-          }];
-          transfers = { in: generatedIn, out: transfers.out || [], pending: transfers.pending || [] };
-        }
-      }
-      return { success: true, data: transfers };
-    }
-    if (method === 'query_key') {
-      return { success: true, data: { key: wallet.seed || generate25WordSeed() } };
-    }
-    if (method === 'create_wallet' || method === 'restore_deterministic_wallet' || method === 'open_wallet') {
-      const newSeed = (params && params.seed) ? params.seed.trim() : generate25WordSeed();
-      const primarySeed = '[REDACTED-COMPROMISED-SEED-PHRASE]';
-      let targetAddr = 'd5HgFkAXMKSN8HTEHRn3ynB9qz4EarbESgwCt61BzZbv6XhjMjWag3CYSskegJduPtHNFbTjzkDmnWxsGn2Enfej4nfzx6J6FY';
-      if (newSeed.toLowerCase() !== primarySeed.toLowerCase()) {
-        targetAddr = generateNewVaultAddress();
-      }
-      wallet = {
-        address: targetAddr,
-        seed: newSeed,
-        balance: targetAddr === 'd5HgFkAXMKSN8HTEHRn3ynB9qz4EarbESgwCt61BzZbv6XhjMjWag3CYSskegJduPtHNFbTjzkDmnWxsGn2Enfej4nfzx6J6FY' ? 13839576639080716 : 0,
-        unlocked_balance: targetAddr === 'd5HgFkAXMKSN8HTEHRn3ynB9qz4EarbESgwCt61BzZbv6XhjMjWag3CYSskegJduPtHNFbTjzkDmnWxsGn2Enfej4nfzx6J6FY' ? 12792829256191000 : 0,
-        transfers: { in: [], out: [], pending: [] }
-      };
-      saveLocalWalletData(wallet);
-      return { success: true, data: { address: wallet.address, seed: wallet.seed } };
-    }
-    if (method === 'rescan_blockchain') {
-      return { success: true, data: { status: 'OK' } };
-    }
-    if (method === 'transfer') {
-      let currentH = await getLiveNetworkHeight();
-
-      const txHash = generateRandomHex(64);
-      const dest = (params && params.destinations && params.destinations[0]) ? params.destinations[0] : { address: '', amount: 0 };
-      const fee = 120000000;
-      const totalDebit = (dest.amount || 0) + fee;
-
-      const newTx = {
-        address: dest.address || '',
-        amount: dest.amount || 0,
-        confirmations: 1,
-        double_spend_seen: false,
-        fee: fee,
-        height: currentH,
-        note: 'Sent VLT',
-        payment_id: '0000000000000000',
-        subaddr_index: { major: 0, minor: 0 },
-        suggested_confirmations_threshold: 1,
-        timestamp: Math.floor(Date.now() / 1000),
-        txid: txHash,
-        tx_hash: txHash,
-        type: 'out',
-        unlock_time: 0
-      };
-
-      if (!wallet.transfers) wallet.transfers = { in: [], out: [], pending: [] };
-      if (!wallet.transfers.out) wallet.transfers.out = [];
-      wallet.transfers.out.unshift(newTx);
-
-      if (wallet.balance !== undefined && wallet.balance > 0) {
-        wallet.balance = Math.max(0, wallet.balance - totalDebit);
-      }
-      if (wallet.unlocked_balance !== undefined && wallet.unlocked_balance > 0) {
-        wallet.unlocked_balance = Math.max(0, wallet.unlocked_balance - totalDebit);
-      }
-
-      saveLocalWalletData(wallet);
-      return { success: true, data: { tx_hash: txHash, fee: fee, status: 'OK' } };
+      return await makeRequest(localUrl || `http://127.0.0.1:${WALLET_RPC_PORT}/json_rpc`);
+    } catch (err) {
+      return { success: false, error: `Wallet RPC unavailable: ${err.message}` };
     }
   }
 
-  // 2. For non-wallet daemon calls (e.g. get_info, get_last_block_header, get_block_headers_range)
+  // For non-wallet daemon calls (e.g. get_info, get_last_block_header, get_block_headers_range)
   let remoteRes = null;
   try {
     remoteRes = await makeRequest(`${REMOTE_NODE_URL}/json_rpc`, method, params);

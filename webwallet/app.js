@@ -3,9 +3,11 @@
    https://webwallet.vaultapp.space
    ========================================================================== */
 
-const RPC_NODE_URL = 'https://node.vaultapp.space/json_rpc';
-const WALLET_RPC_URL = 'https://node.vaultapp.space/wallet_rpc';
+const RPC_NODE_URL = '/json_rpc';
+const WALLET_RPC_URL = '/wallet_rpc';
 const EXPLORER_URL = 'https://explorer.vaultapp.space';
+const REWARD_PER_BLOCK = 17578350278193;
+const ATOMIC_UNITS = 1000000000000n;
 
 let activeAddress = '';
 let activeMnemonicSeed = '';
@@ -29,13 +31,30 @@ const mnemonicWordList = [
 
 // Sanitize HTML string to prevent XSS
 function escapeHtml(str) {
-  if (!str) return '';
+  if (str === null || str === undefined) return '';
   return String(str)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+// Format an atomic-unit amount (Number or BigInt) as a fixed-6-decimal VLT string,
+// using BigInt arithmetic throughout so balances above Number.MAX_SAFE_INTEGER
+// (~9007 VLT) don't silently lose precision.
+function formatAtomicToVlt(atomic) {
+  let big;
+  try {
+    big = typeof atomic === 'bigint' ? atomic : BigInt(Math.round(Number(atomic) || 0));
+  } catch (e) {
+    big = 0n;
+  }
+  const negative = big < 0n;
+  if (negative) big = -big;
+  const whole = big / ATOMIC_UNITS;
+  const frac = (big % ATOMIC_UNITS).toString().padStart(12, '0').slice(0, 6);
+  return `${negative ? '-' : ''}${whole.toString()}.${frac}`;
 }
 
 // Toast Notifications
@@ -169,6 +188,7 @@ function finishCreateWallet() {
   closeWalletModal();
   setAddress(activeAddress);
   localStorage.setItem('vault_web_session', JSON.stringify({ address: activeAddress, seed: activeMnemonicSeed, name: currentWalletName }));
+  resetTransactionHistoryView();
   updateDashboard();
   showToast('success', 'New wallet active and ready!');
 }
@@ -221,12 +241,20 @@ async function finishRestoreWallet() {
     closeWalletModal();
     setAddress(activeAddress);
     localStorage.setItem('vault_web_session', JSON.stringify({ address: activeAddress, seed: activeMnemonicSeed, name: currentWalletName }));
+    resetTransactionHistoryView();
     await rpcCall(WALLET_RPC_URL, 'rescan_blockchain');
     updateDashboard();
     showToast('success', 'Wallet restored! Rescanned blockchain.');
   } catch (err) {
     showToast('error', 'Failed to restore wallet: ' + err.message);
   }
+}
+
+// Clears any previously-loaded wallet's transaction list so switching wallets
+// never leaves the old wallet's history visible until a manual refresh.
+function resetTransactionHistoryView() {
+  const tbody = document.getElementById('txTableBody');
+  if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="table-empty">Loading transactions...</td></tr>`;
 }
 
 // Address Management
@@ -266,6 +294,7 @@ function renderQrCode(address) {
 
 // Send Transaction Flow
 let pendingSendParams = null;
+let isSending = false;
 
 function openSendConfirmModal() {
   const address = document.getElementById('sendAddress').value.trim();
@@ -297,8 +326,11 @@ function closeConfirmModal() {
   pendingSendParams = null;
 }
 
-async function executeSendTransaction() {
-  if (!pendingSendParams) return;
+async function executeSendTransaction(buttonEl) {
+  if (!pendingSendParams || isSending) return;
+  isSending = true;
+  if (buttonEl) buttonEl.disabled = true;
+
   const { address, atomicAmount, priority } = pendingSendParams;
   closeConfirmModal();
 
@@ -309,14 +341,16 @@ async function executeSendTransaction() {
     });
 
     const txHash = res.tx_hash || '';
-    const link = `<a href="${EXPLORER_URL}/tx/${txHash}" target="_blank" style="color:#00e5ff;text-decoration:underline;">View on Explorer</a>`;
     showToast('success', `Transaction Broadcast! Hash: ${txHash.substring(0, 14)}...`);
-    
+
     document.getElementById('sendAddress').value = '';
     document.getElementById('sendAmount').value = '';
     updateDashboard();
   } catch (err) {
     showToast('error', 'Failed to send transaction: ' + err.message);
+  } finally {
+    isSending = false;
+    if (buttonEl) buttonEl.disabled = false;
   }
 }
 
@@ -341,14 +375,15 @@ async function loadTransactions() {
     }
 
     tbody.innerHTML = allTxs.map(tx => {
-      const typeBadge = tx.type === 'IN' 
+      const typeBadge = tx.type === 'IN'
         ? `<span style="color:#00e676;font-weight:700;">INCOMING</span>`
         : (tx.type === 'OUT' ? `<span style="color:#ff5252;font-weight:700;">OUTGOING</span>` : `<span style="color:#ffd700;font-weight:700;">PENDING</span>`);
-      
-      const vltAmount = (tx.amount / 1e12).toFixed(6);
+
+      const vltAmount = formatAtomicToVlt(tx.amount || 0);
       const dateStr = tx.timestamp ? new Date(tx.timestamp * 1000).toLocaleString() : 'Pending';
+      const safeTxid = tx.txid ? escapeHtml(tx.txid) : '';
       const hashShort = tx.txid ? `${tx.txid.substring(0, 10)}...` : 'Pending';
-      const hashLink = tx.txid ? `<a href="${EXPLORER_URL}/tx/${tx.txid}" target="_blank" class="tx-link mono">${hashShort}</a>` : 'Pending';
+      const hashLink = tx.txid ? `<a href="${EXPLORER_URL}/tx/${safeTxid}" target="_blank" class="tx-link mono">${escapeHtml(hashShort)}</a>` : 'Pending';
 
       return `
         <tr>
@@ -356,7 +391,7 @@ async function loadTransactions() {
           <td>${hashLink}</td>
           <td>${tx.height || 'MemPool'}</td>
           <td style="font-weight:700;">${vltAmount} VLT</td>
-          <td style="color:#94a3b8;font-size:12px;">${dateStr}</td>
+          <td style="color:#94a3b8;font-size:12px;">${escapeHtml(dateStr)}</td>
         </tr>
       `;
     }).join('');
@@ -366,7 +401,11 @@ async function loadTransactions() {
 }
 
 // Live Dashboard Polling
+let isDashboardRefreshing = false;
+
 async function updateDashboard() {
+  if (isDashboardRefreshing) return;
+  isDashboardRefreshing = true;
   try {
     // 1. Fetch Node Info (Height, Difficulty, Hashrate & Sync status)
     const info = await rpcCall(RPC_NODE_URL, 'get_info');
@@ -391,10 +430,11 @@ async function updateDashboard() {
         if (sumRes && sumRes.emission_amount) {
           supplyStr = `${((sumRes.emission_amount) / 1e12).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} VLT`;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error('get_coinbase_tx_sum failed, falling back to estimated supply:', e.message);
+      }
 
       if (!supplyStr && height > 0) {
-        const REWARD_PER_BLOCK = 17578350278193;
         supplyStr = `${((height * REWARD_PER_BLOCK) / 1e12).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} VLT`;
       }
 
@@ -416,15 +456,17 @@ async function updateDashboard() {
       try {
         const balRes = await rpcCall(WALLET_RPC_URL, 'get_balance', { account_index: 0 });
         if (balRes) {
-          const totalAtomic = balRes.balance || 0;
-          const unlockedAtomic = balRes.unlocked_balance || 0;
+          const totalAtomic = BigInt(balRes.balance || 0);
+          const unlockedAtomic = BigInt(balRes.unlocked_balance || 0);
           const lockedAtomic = totalAtomic - unlockedAtomic;
 
-          document.getElementById('balanceTotal').innerText = (totalAtomic / 1e12).toFixed(6);
-          document.getElementById('balanceUnlocked').innerText = `${(unlockedAtomic / 1e12).toFixed(6)} VLT`;
-          document.getElementById('balanceLocked').innerText = `${(lockedAtomic / 1e12).toFixed(6)} VLT`;
+          document.getElementById('balanceTotal').innerText = formatAtomicToVlt(totalAtomic);
+          document.getElementById('balanceUnlocked').innerText = `${formatAtomicToVlt(unlockedAtomic)} VLT`;
+          document.getElementById('balanceLocked').innerText = `${formatAtomicToVlt(lockedAtomic)} VLT`;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error('get_balance failed, leaving last-known balance displayed:', e.message);
+      }
     } else {
       document.getElementById('balanceTotal').innerText = '0.000000';
       document.getElementById('balanceUnlocked').innerText = '0.000000 VLT';
@@ -435,24 +477,30 @@ async function updateDashboard() {
     document.getElementById('nodeLabel').innerText = 'Reconnecting to Node...';
     const statusEl = document.getElementById('netStatusText');
     if (statusEl) statusEl.innerText = 'Offline / Reconnecting...';
+  } finally {
+    isDashboardRefreshing = false;
   }
 }
 
 // App Initialization
 document.addEventListener('DOMContentLoaded', async () => {
   const saved = localStorage.getItem('vault_web_session');
+  let restoredAddress = '';
   if (saved) {
     try {
       const data = JSON.parse(saved);
-      activeAddress = data.address || '';
-      activeMnemonicSeed = data.seed || '';
-      currentWalletName = data.name || 'Web Wallet';
-      setAddress(activeAddress);
+      restoredAddress = data.address || '';
+      if (restoredAddress) {
+        activeAddress = restoredAddress;
+        activeMnemonicSeed = data.seed || '';
+        currentWalletName = data.name || 'Web Wallet';
+        setAddress(activeAddress);
+      }
     } catch (e) {
-      setAddress('');
-      openWalletModal();
+      restoredAddress = '';
     }
-  } else {
+  }
+  if (!restoredAddress) {
     setAddress('');
     openWalletModal();
   }
@@ -488,10 +536,11 @@ async function loadExplorerData() {
       if (sumRes && sumRes.emission_amount) {
         supplyStr = `${((sumRes.emission_amount) / 1e12).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} VLT`;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error('get_coinbase_tx_sum failed, falling back to estimated supply:', e.message);
+    }
 
     if (!supplyStr && currentH > 0) {
-      const REWARD_PER_BLOCK = 17578350278193;
       supplyStr = `${((currentH * REWARD_PER_BLOCK) / 1e12).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} VLT`;
     }
 
@@ -514,6 +563,7 @@ async function loadExplorerData() {
         const blocks = [...rangeRes.headers].reverse();
         tbody.innerHTML = blocks.map(b => {
           const rewardVlt = ((b.reward || REWARD_PER_BLOCK) / 1e12).toFixed(6);
+          const safeHash = b.hash ? escapeHtml(b.hash) : '';
           const shortHash = b.hash ? `${b.hash.substring(0, 12)}...${b.hash.substring(b.hash.length - 8)}` : 'N/A';
           const ageSec = b.timestamp ? Math.max(0, Math.floor(Date.now() / 1000) - b.timestamp) : 0;
           const ageText = ageSec > 3600 ? `${Math.floor(ageSec / 3600)}h ago` : (ageSec > 60 ? `${Math.floor(ageSec / 60)}m ago` : `${ageSec}s ago`);
@@ -521,7 +571,7 @@ async function loadExplorerData() {
           return `
             <tr>
               <td style="font-weight:700;color:#00e5ff;">#${b.height}</td>
-              <td class="mono" style="cursor:pointer;color:#a5b4fc;" onclick="openBlockModalByData('${b.hash}')" title="Click to view details">${shortHash}</td>
+              <td class="mono" style="cursor:pointer;color:#a5b4fc;" onclick="openBlockModalByData('${safeHash}')" title="Click to view details">${escapeHtml(shortHash)}</td>
               <td>${b.num_txes || 0}</td>
               <td style="font-weight:600;color:#00e676;">+${rewardVlt} VLT</td>
               <td style="color:#94a3b8;font-size:12px;">${ageText}</td>
@@ -588,14 +638,14 @@ function renderBlockModalContent(b) {
   body.innerHTML = `
     <div class="confirm-details">
       <div class="confirm-row"><span class="confirm-label">Block Height:</span><span class="confirm-value text-gold">#${b.height}</span></div>
-      <div class="confirm-row"><span class="confirm-label">Block Hash:</span><span class="confirm-value mono" style="font-size:11px;word-break:break-all;">${b.hash || ''}</span></div>
-      <div class="confirm-row"><span class="confirm-label">Previous Hash:</span><span class="confirm-value mono" style="font-size:11px;word-break:break-all;">${b.prev_hash || ''}</span></div>
+      <div class="confirm-row"><span class="confirm-label">Block Hash:</span><span class="confirm-value mono" style="font-size:11px;word-break:break-all;">${escapeHtml(b.hash)}</span></div>
+      <div class="confirm-row"><span class="confirm-label">Previous Hash:</span><span class="confirm-value mono" style="font-size:11px;word-break:break-all;">${escapeHtml(b.prev_hash)}</span></div>
       <div class="confirm-row"><span class="confirm-label">Block Reward:</span><span class="confirm-value" style="color:#00e676;">+${rewardVlt} VLT</span></div>
       <div class="confirm-row"><span class="confirm-label">Difficulty:</span><span class="confirm-value">${Number(b.difficulty || 0).toLocaleString()}</span></div>
       <div class="confirm-row"><span class="confirm-label">Transactions Count:</span><span class="confirm-value">${b.num_txes || 0}</span></div>
       <div class="confirm-row"><span class="confirm-label">Block Size / Weight:</span><span class="confirm-value">${b.block_size || 0} bytes</span></div>
-      <div class="confirm-row"><span class="confirm-label">Nonce:</span><span class="confirm-value mono">${b.nonce || 0}</span></div>
-      <div class="confirm-row"><span class="confirm-label">Timestamp:</span><span class="confirm-value">${dateStr}</span></div>
+      <div class="confirm-row"><span class="confirm-label">Nonce:</span><span class="confirm-value mono">${escapeHtml(b.nonce)}</span></div>
+      <div class="confirm-row"><span class="confirm-label">Timestamp:</span><span class="confirm-value">${escapeHtml(dateStr)}</span></div>
     </div>
   `;
 
