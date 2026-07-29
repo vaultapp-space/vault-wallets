@@ -317,19 +317,6 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
         } catch (e2) {}
       }
 
-      let bal = 0;
-      let unlocked = 0;
-
-      const isPrimaryMiningAddr = (wallet.address === 'd5HgFkAXMKSN8HTEHRn3ynB9qz4EarbESgwCt61BzZbv6XhjMjWag3CYSskegJduPtHNFbTjzkDmnWxsGn2Enfej4nfzx6J6FY');
-
-      let grossMined = 0;
-      let unlockedMined = 0;
-      if (isPrimaryMiningAddr) {
-        const REWARD_PER_BLOCK = 17578350278193; // atomic units (17.578350278193 VLT)
-        grossMined = Math.round(currentH * REWARD_PER_BLOCK);
-        unlockedMined = Math.round(Math.max(0, currentH - 60) * REWARD_PER_BLOCK);
-      }
-
       let totalIn = 0;
       let unlockedIn = 0;
       if (wallet.transfers && Array.isArray(wallet.transfers.in)) {
@@ -350,16 +337,14 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
         }
       }
 
-      if (isPrimaryMiningAddr) {
-        bal = Math.max(0, grossMined + totalIn - totalOutDebit);
-        unlocked = Math.max(0, unlockedMined + unlockedIn - totalOutDebit);
-      } else {
-        bal = Math.max(0, totalIn - totalOutDebit);
-        unlocked = Math.max(0, unlockedIn - totalOutDebit);
-        if (bal === 0 && wallet.balance && wallet.balance > 0) {
-          bal = wallet.balance - totalOutDebit;
-          unlocked = (wallet.unlocked_balance || wallet.balance) - totalOutDebit;
-        }
+      // Pure wallet balance derived from actual incoming/outgoing wallet transactions
+      let bal = Math.max(0, totalIn - totalOutDebit);
+      let unlocked = Math.max(0, unlockedIn - totalOutDebit);
+
+      // Preserve synced RPC balance if active
+      if (totalIn === 0 && wallet.balance && wallet.balance > 0) {
+        bal = Math.max(0, wallet.balance - totalOutDebit);
+        unlocked = Math.max(0, (wallet.unlocked_balance || wallet.balance) - totalOutDebit);
       }
 
       wallet.balance = Math.max(0, bal);
