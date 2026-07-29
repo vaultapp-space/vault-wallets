@@ -338,7 +338,7 @@ async function updateDashboard() {
     const resBal = await ipcRenderer.invoke('rpc-call', {
       url: currentWalletRpcUrl,
       method: 'get_balance',
-      params: { account_index: 0 }
+      params: { account_index: 0, height: height }
     });
 
     if (resBal.success && resBal.data) {

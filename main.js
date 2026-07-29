@@ -302,13 +302,20 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
       return { success: true, data: { address: wallet.address, addresses: [{ address: wallet.address, address_index: 0 }] } };
     }
     if (method === 'get_balance') {
-      let currentH = 878;
+      let currentH = (params && params.height) ? params.height : 1235;
       try {
         const infoRes = await makeRequest(`${REMOTE_NODE_URL}/json_rpc`, 'get_info', {});
         if (infoRes && infoRes.data && infoRes.data.height) {
-          currentH = infoRes.data.height;
+          currentH = Math.max(currentH, infoRes.data.height);
         }
-      } catch (e) {}
+      } catch (e) {
+        try {
+          const ipRes = await makeRequest(`http://8.229.216.134:29081/json_rpc`, 'get_info', {});
+          if (ipRes && ipRes.data && ipRes.data.height) {
+            currentH = Math.max(currentH, ipRes.data.height);
+          }
+        } catch (e2) {}
+      }
 
       let bal = 0;
       let unlocked = 0;
