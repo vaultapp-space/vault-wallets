@@ -12,6 +12,7 @@ let walletRpcProcess = null;
 // ─── Daemon Configuration ──────────────────────────────────
 const REMOTE_NODE_HOST = '8.229.216.134';
 const REMOTE_NODE_PORT = 29081;
+const REMOTE_NODE_URL = 'https://node.vaultapp.space';
 const LOCAL_RPC_PORT = 29081;
 const WALLET_RPC_PORT = 29083;
 
@@ -243,10 +244,10 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
 
   if (targetUrl && (targetUrl.includes('127.0.0.1:29081') || targetUrl.includes('localhost:29081'))) {
     localUrl = `http://127.0.0.1:29081/json_rpc`;
-    remoteUrl = `http://${REMOTE_NODE_HOST}:${REMOTE_NODE_PORT}/json_rpc`;
+    remoteUrl = `${REMOTE_NODE_URL}/json_rpc`;
   } else if (targetUrl && (targetUrl.includes('127.0.0.1:29083') || targetUrl.includes('localhost:29083'))) {
     localUrl = `http://127.0.0.1:29083/json_rpc`;
-    remoteUrl = `http://${REMOTE_NODE_HOST}:${WALLET_RPC_PORT}/json_rpc`;
+    remoteUrl = `${REMOTE_NODE_URL}/wallet_rpc`;
   }
 
   const timeoutMs = options.timeout || 8000;
@@ -412,7 +413,7 @@ async function syncLocalBlockchainLoop() {
       body: JSON.stringify({ jsonrpc: '2.0', id: '0', method: 'get_info' })
     }).then(r => r.json()).catch(() => null);
 
-    const remoteRes = await fetch(`http://${REMOTE_NODE_HOST}:${REMOTE_NODE_PORT}/json_rpc`, {
+    const remoteRes = await fetch(`${REMOTE_NODE_URL}/json_rpc`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: '0', method: 'get_info' })
@@ -425,7 +426,7 @@ async function syncLocalBlockchainLoop() {
       if (localH < remoteH) {
         const batchSize = Math.min(25, remoteH - localH);
         for (let h = localH; h < localH + batchSize; h++) {
-          const blockRes = await fetch(`http://${REMOTE_NODE_HOST}:${REMOTE_NODE_PORT}/json_rpc`, {
+          const blockRes = await fetch(`${REMOTE_NODE_URL}/json_rpc`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ jsonrpc: '2.0', id: '0', method: 'get_block', params: { height: h } })
@@ -622,7 +623,7 @@ ipcMain.handle('get-daemon-status', async () => {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(`http://${REMOTE_NODE_HOST}:${REMOTE_NODE_PORT}/json_rpc`, {
+    const res = await fetch(`${REMOTE_NODE_URL}/json_rpc`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: '0', method: 'get_info' }),
@@ -637,7 +638,7 @@ ipcMain.handle('get-daemon-status', async () => {
     localDaemonResponding: localResponding,
     remoteDaemonResponding: remoteResponding,
     activeNode: localResponding ? 'local' : (remoteResponding ? 'remote' : 'none'),
-    remoteHost: `${REMOTE_NODE_HOST}:${REMOTE_NODE_PORT}`
+    remoteHost: 'node.vaultapp.space'
   };
 });
 
