@@ -83,6 +83,7 @@ function startDaemon() {
       '--rpc-bind-ip', '127.0.0.1',
       '--rpc-bind-port', String(LOCAL_RPC_PORT),
       '--p2p-bind-port', '0',
+      '--add-priority-node', '8.229.216.134:29080',
       '--non-interactive',
       '--log-level', '1'
     ], {
