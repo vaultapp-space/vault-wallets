@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, shell, Notification } = require('electron')
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const crypto = require('crypto');
 const { spawn } = require('child_process');
 
 let mainWindow;
