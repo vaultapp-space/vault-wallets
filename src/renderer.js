@@ -217,10 +217,11 @@ async function refreshActiveAddress() {
 
 async function updateDashboard() {
   try {
+    let height = 0;
     // Check daemon connection status from main process
     const daemonStatus = await ipcRenderer.invoke('get-daemon-status');
     const syncStatus = await ipcRenderer.invoke('get-sync-status');
-    connectionMode = daemonStatus.activeNode;
+    connectionMode = daemonStatus ? daemonStatus.activeNode : 'remote';
 
     if (syncStatus) {
       const pathEl = document.getElementById('localBlockchainPath');
@@ -234,34 +235,32 @@ async function updateDashboard() {
       method: 'get_info'
     });
 
-    if (resInfo.success && resInfo.data) {
+    if (resInfo && resInfo.success && resInfo.data) {
       const d = resInfo.data;
-      const currentH = d.height || 0;
+      height = d.height || 0;
       let targetH = d.target_height || 0;
 
-      if (targetH < currentH && daemonStatus.remoteHost) {
+      if (targetH < height && daemonStatus && daemonStatus.remoteHost) {
         try {
-          // Use HTTPS domain — raw IP:port is now firewalled
           const remoteRes = await ipcRenderer.invoke('rpc-call', {
             url: `https://node.vaultapp.space/json_rpc`,
             method: 'get_info'
           });
-          if (remoteRes.success && remoteRes.data && remoteRes.data.height) {
+          if (remoteRes && remoteRes.success && remoteRes.data && remoteRes.data.height) {
             targetH = Math.max(targetH, remoteRes.data.height);
           }
         } catch (e) {}
       }
 
-      if (targetH < currentH) targetH = currentH;
+      if (targetH < height) targetH = height;
 
       let syncPct = 100;
-      if (targetH > 0 && currentH < targetH) {
-        syncPct = Math.min(99, Math.round((currentH / targetH) * 100));
-      } else if (currentH === 0) {
+      if (targetH > 0 && height < targetH) {
+        syncPct = Math.min(99, Math.round((height / targetH) * 100));
+      } else if (height === 0) {
         syncPct = 0;
       }
 
-      const height = d.height || 0;
       const diff = d.difficulty || 1;
       const target = d.target || 60;
       const rawHashrate = d.hashrate || (diff / target);
@@ -300,19 +299,21 @@ async function updateDashboard() {
       document.getElementById('nodeDot').className = 'status-dot green';
 
       // Show connection source & sync status
-      let nodeLabel = 'Local Full Node (100% Synced)';
-      let badgeLabel = 'Local Full Node (100% Synced)';
+      let nodeLabel = 'Connected to Node';
+      let badgeLabel = 'Node Connected (100% Synced)';
       let syncText = '100% Synced';
 
+      const remoteHost = (daemonStatus && daemonStatus.remoteHost) ? daemonStatus.remoteHost : 'node.vaultapp.space';
+
       if (resInfo.fallback) {
-        nodeLabel = `Remote Node (${daemonStatus.remoteHost})`;
-        badgeLabel = `Connected to Remote Node (${daemonStatus.remoteHost} • 100% Synced)`;
+        nodeLabel = `Remote Node (${remoteHost})`;
+        badgeLabel = `Connected to Remote Node (${remoteHost} • 100% Synced)`;
         syncPct = 100;
         syncText = '100% Synced (Remote Node)';
       } else if (syncPct < 100) {
         nodeLabel = `Local Node Syncing (${syncPct}%)`;
-        badgeLabel = `Downloading Local Blockchain (${currentH}/${targetH} blocks • ${syncPct}%)`;
-        syncText = `Syncing ${currentH}/${targetH} (${syncPct}%)`;
+        badgeLabel = `Downloading Local Blockchain (${height}/${targetH} blocks • ${syncPct}%)`;
+        syncText = `Syncing ${height}/${targetH} (${syncPct}%)`;
       }
 
       document.getElementById('nodeLabel').innerText = nodeLabel;
@@ -333,15 +334,13 @@ async function updateDashboard() {
       document.getElementById('syncBarFill').style.width = '0%';
     }
 
-
-
     const resBal = await ipcRenderer.invoke('rpc-call', {
       url: currentWalletRpcUrl,
       method: 'get_balance',
       params: { account_index: 0, height: height }
     });
 
-    if (resBal.success && resBal.data) {
+    if (resBal && resBal.success && resBal.data) {
       const totalAtomic = resBal.data.balance || 0;
       const unlockedAtomic = resBal.data.unlocked_balance || 0;
       const lockedAtomic = totalAtomic - unlockedAtomic;
