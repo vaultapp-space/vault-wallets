@@ -63,6 +63,9 @@ function switchTab(tabName) {
 
   if (btn) btn.classList.add('active');
   if (view) view.classList.add('active');
+
+  if (tabName === 'receive') renderQrCode(activeAddress);
+  if (tabName === 'history') loadTransactions();
 }
 
 // Modal Control
