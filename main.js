@@ -280,7 +280,7 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
   if (isWalletCall) {
     try {
       const localRes = await makeRequest(localUrl);
-      if (localRes && localRes.success) {
+      if (localRes && localRes.success && localRes.data && (localRes.data.balance > 0 || method === 'get_address')) {
         return localRes;
       }
     } catch (err) {}
