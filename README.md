@@ -1,7 +1,7 @@
 # 🛡️ VAULT (VLT) — Desktop Core GUI Wallet (macOS & Windows)
 
 [![Website](https://img.shields.io/badge/Website-vaultapp.space-00f2fe?style=for-the-badge&logo=googlechrome&logoColor=white)](https://vaultapp.space)
-[![X / Twitter](https://img.shields.io/badge/X%2F%20Twitter-@VaultMe-1DA1F2?style=for-the-badge&logo=x&logoColor=white)](https://x.com/VaultMe)
+[![X / Twitter](https://img.shields.io/badge/X%2F%20Twitter-@VaultMessenger-1DA1F2?style=for-the-badge&logo=x&logoColor=white)](https://x.com/VaultMessenger)
 [![Telegram](https://img.shields.io/badge/Telegram-@Vault__Space-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/Vault_Space)
 [![Discord](https://img.shields.io/badge/Discord-Join_Community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/VZyvT)
 [![Blockchain Explorer](https://img.shields.io/badge/Explorer-8.229.216.134%3A3000-7f00ff?style=for-the-badge&logo=express&logoColor=white)](http://8.229.216.134:3000)
@@ -18,7 +18,7 @@ VAULT is an untraceable, privacy-centric cryptocurrency built on CryptoNote and 
 ## 🌐 Official Channels & Social Links
 
 - **🌐 Website**: [https://vaultapp.space](https://vaultapp.space)
-- **𝕏 / Twitter**: [@VaultMe](https://x.com/VaultMe)
+- **𝕏 / Twitter**: [@VaultMessenger](https://x.com/VaultMessenger)
 - **💬 Telegram Community**: [@Vault_Space](https://t.me/Vault_Space)
 - **👾 Discord Server**: [Join Discord Community](https://discord.gg/VZyvT)
 - **🔍 Block Explorer**: [http://8.229.216.134:3000](http://8.229.216.134:3000)
