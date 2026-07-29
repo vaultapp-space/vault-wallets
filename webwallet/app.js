@@ -11,8 +11,8 @@ let activeAddress = '';
 let activeMnemonicSeed = '';
 let currentWalletName = 'Primary Wallet';
 
-// Electrum 25-word seed dictionary sample
-const electrumWordList = [
+// 25-word seed dictionary sample
+const mnemonicWordList = [
   "abbey", "abrupt", "absent", "absorb", "abstract", "absurd", "accent", "accept", "access",
   "accident", "account", "accuse", "achieve", "acid", "acoustic", "acquire", "across", "act",
   "action", "actor", "actress", "actual", "adapt", "add", "addict", "address", "adjust",
@@ -118,8 +118,8 @@ function generate25WordMnemonic() {
   window.crypto.getRandomValues(randomBytes);
 
   for (let i = 0; i < 25; i++) {
-    const idx = randomBytes[i] % electrumWordList.length;
-    words.push(electrumWordList[idx]);
+    const idx = randomBytes[i] % mnemonicWordList.length;
+    words.push(mnemonicWordList[idx]);
   }
   return words.join(' ');
 }

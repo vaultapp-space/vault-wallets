@@ -58,7 +58,7 @@ The VAULT GUI Wallet features a **Pure Pitch Black Theme (`#000000`)** designed 
   - **QR Code Generator**: Generates 2D QR codes for instant mobile receiving.
 - **📖 Address Book & Contacts**: Save frequently used recipient addresses with custom labels for one-click transfers.
 - **📜 Transaction History & CSV Export**: Real-time transfer history with filter controls (All/Received/Sent/Pending) and one-click **"Export CSV"** to Desktop.
-- **🔒 Security & Backup Tool**: Retrieve 25-word Electrum recovery seed phrases and export encrypted wallet backups directly to your Desktop.
+- **🔒 Security & Backup Tool**: Retrieve 25-word recovery seed phrases and export encrypted wallet backups directly to your Desktop.
 - **🔔 Native Desktop Notifications**: macOS and Windows system notifications for incoming payments.
 
 ---

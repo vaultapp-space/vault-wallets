@@ -119,7 +119,7 @@ The **VAULT Core GUI Wallet** is a cross-platform desktop application built with
    - **2D QR Code Generator**: Generates mobile-scannable QR codes for instant payment receipts.
    - **Disposable Subaddresses**: Create secondary stealth subaddresses for untraceable contact sharing.
 5. **Transaction Manager**: Real-time transfers table (All / Received / Sent / Pending) with one-click **CSV Exporter** to Desktop.
-6. **25-Word Mnemonic Recovery**: Full Electrum-compatible 25-word mnemonic seed generation and restoration.
+6. **25-Word Mnemonic Recovery**: Full 25-word mnemonic seed generation and restoration.
 
 ---
 

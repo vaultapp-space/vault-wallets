@@ -10,7 +10,7 @@ let currentWalletRpcUrl = `${REMOTE_DAEMON_URL.replace('/json_rpc', '/wallet_rpc
 let activeAddress = '';
 let currentSeedPhrase = '';
 
-const electrumWordList = [
+const mnemonicWordList = [
   "ingested", "molten", "mirror", "novelty", "feline", "rally", "clue", "jetting",
   "syllabus", "school", "nautical", "hectare", "plotting", "january", "kept", "alumni",
   "inroads", "linen", "butter", "camp", "unquoted", "hoax", "succeed", "tribal", "vault"
@@ -92,8 +92,8 @@ function showStepRestore() {
 async function startCreateWallet() {
   const words = [];
   for (let i = 0; i < 25; i++) {
-    const idx = Math.floor(Math.random() * electrumWordList.length);
-    words.push(electrumWordList[idx]);
+    const idx = Math.floor(Math.random() * mnemonicWordList.length);
+    words.push(mnemonicWordList[idx]);
   }
   currentSeedPhrase = words.join(' ');
 
