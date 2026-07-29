@@ -176,7 +176,21 @@ async function finishRestoreWallet() {
 }
 
 async function fetchActiveAddress() {
-  // Always show clean setup wizard on startup — never auto-load any wallet
+  try {
+    const resAddr = await ipcRenderer.invoke('rpc-call', {
+      url: currentWalletRpcUrl,
+      method: 'get_address',
+      params: { account_index: 0 }
+    });
+    if (resAddr.success && resAddr.data && resAddr.data.address) {
+      setAddress(resAddr.data.address);
+      document.getElementById('currentWalletName').innerText = 'Primary Wallet';
+      closeWalletModal();
+      return;
+    }
+  } catch (err) {}
+
+  // Fallback if no wallet RPC is active
   setAddress('');
   document.getElementById('currentWalletName').innerText = 'No Wallet Loaded';
   openWalletModal();
