@@ -82,7 +82,7 @@ function startDaemon() {
       '--data-dir', dataDir,
       '--rpc-bind-ip', '127.0.0.1',
       '--rpc-bind-port', String(LOCAL_RPC_PORT),
-      '--offline',
+      '--p2p-bind-port', '0',
       '--non-interactive',
       '--log-level', '1'
     ], {
@@ -424,7 +424,8 @@ async function syncLocalBlockchainLoop() {
       const remoteH = remoteRes.result.height || 0;
 
       if (localH < remoteH) {
-        const batchSize = Math.min(25, remoteH - localH);
+        console.log(`[VAULT Sync] Local height: ${localH}, Remote height: ${remoteH}. Catching up...`);
+        const batchSize = Math.min(30, remoteH - localH);
         for (let h = localH; h < localH + batchSize; h++) {
           const blockRes = await fetch(`${REMOTE_NODE_URL}/json_rpc`, {
             method: 'POST',
@@ -433,30 +434,30 @@ async function syncLocalBlockchainLoop() {
           }).then(r => r.json()).catch(() => null);
 
           if (blockRes && blockRes.result && blockRes.result.blob) {
-            await fetch(`http://127.0.0.1:${LOCAL_RPC_PORT}/json_rpc`, {
+            const subRes = await fetch(`http://127.0.0.1:${LOCAL_RPC_PORT}/json_rpc`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ jsonrpc: '2.0', id: '0', method: 'submit_block', params: [blockRes.result.blob] })
-            }).catch(() => null);
+            }).then(r => r.json()).catch(() => null);
+            if (subRes && subRes.result && subRes.result.status === 'OK') {
+              console.log(`[VAULT Sync] Successfully synced block #${h}`);
+            }
           }
         }
       }
     }
   } catch (err) {
-    /* ignore loop errors */
+    console.error('[VAULT Sync Error]', err.message);
   } finally {
     isSyncingBlocks = false;
   }
 }
 
 app.whenReady().then(async () => {
-  // Ensure local daemon binary exists & start local daemon
   await ensureDaemonBinaryExists();
-  const daemonStarted = startDaemon();
-  if (daemonStarted) {
-    setTimeout(() => startWalletRpc(), 3000);
-    syncLoopTimer = setInterval(syncLocalBlockchainLoop, 3000);
-  }
+  startDaemon();
+  setTimeout(() => startWalletRpc(), 3000);
+  syncLoopTimer = setInterval(syncLocalBlockchainLoop, 2000);
   createWindow();
 });
 
@@ -544,28 +545,36 @@ ipcMain.handle('rpc-call', async (event, { url, method, params }) => {
 });
 
 
-// IPC Handler: Direct HTTP POST Bridge (strictly for LOCAL daemon endpoints like /start_mining, /mining_status)
+// IPC Handler: Direct HTTP Bridge (for LOCAL daemon endpoints like /start_mining, /mining_status)
+// NOTE: vaultd uses GET with query params for /start_mining and /stop_mining — NOT JSON POST
 ipcMain.handle('http-post', async (event, { url, body }) => {
   const isMiningCall = url && (url.includes('/start_mining') || url.includes('/stop_mining') || url.includes('/mining_status'));
 
   if (isMiningCall) {
-    // Strictly target local daemon (127.0.0.1:29081) — NEVER forward mining calls to remote VPS server
-    let localUrl = `http://127.0.0.1:${LOCAL_RPC_PORT}`;
+    // Strictly target local daemon (127.0.0.1:29081)
+    let localBase = `http://127.0.0.1:${LOCAL_RPC_PORT}`;
+    let pathname = '/mining_status';
     try {
       const parsedUrl = new URL(url);
-      localUrl += parsedUrl.pathname;
-    } catch (e) {
-      localUrl += '/mining_status';
-    }
+      pathname = parsedUrl.pathname;
+    } catch (e) {}
+
+    const localUrl = localBase + pathname;
+    const isGet = pathname.includes('/start_mining') || pathname.includes('/stop_mining') || pathname.includes('/mining_status');
 
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 3000);
+      const timer = setTimeout(() => controller.abort(), 5000);
 
-      const res = await fetch(localUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body || {}),
+      let finalUrl = localUrl;
+      if (isGet && body && Object.keys(body).length > 0) {
+        // vaultd expects GET with query string for mining endpoints
+        const qs = Object.entries(body).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+        finalUrl = `${localUrl}?${qs}`;
+      }
+
+      const res = await fetch(finalUrl, {
+        method: 'GET',
         signal: controller.signal
       });
       clearTimeout(timer);
@@ -683,7 +692,7 @@ ipcMain.handle('get-sync-status', async () => {
     dbSizeFormatted: formatted,
     daemonBinaryPresent: fs.existsSync(paths.daemon),
     daemonRunning: daemonProcess !== null && daemonProcess.exitCode === null,
-    remoteHost: `${REMOTE_NODE_HOST}:${REMOTE_NODE_PORT}`
+    remoteHost: 'node.vaultapp.space'
   };
 });
 

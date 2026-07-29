@@ -224,8 +224,9 @@ async function updateDashboard() {
 
       if (targetH < currentH && daemonStatus.remoteHost) {
         try {
+          // Use HTTPS domain — raw IP:port is now firewalled
           const remoteRes = await ipcRenderer.invoke('rpc-call', {
-            url: `http://${daemonStatus.remoteHost}/json_rpc`,
+            url: `https://node.vaultapp.space/json_rpc`,
             method: 'get_info'
           });
           if (remoteRes.success && remoteRes.data && remoteRes.data.height) {
@@ -879,6 +880,6 @@ fetchActiveAddress().then(async () => {
   updateFeePreview();
 });
 
-setInterval(updateDashboard, 1000);
+setInterval(updateDashboard, 3000);
 
 
