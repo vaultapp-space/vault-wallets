@@ -167,6 +167,7 @@ async function startCreateWallet() {
 function finishCreateWallet() {
   closeWalletModal();
   setAddress(activeAddress);
+  localStorage.setItem('vault_web_session', JSON.stringify({ address: activeAddress, seed: activeMnemonicSeed, name: currentWalletName }));
   updateDashboard();
   showToast('success', 'New wallet active and ready!');
 }
@@ -218,6 +219,7 @@ async function finishRestoreWallet() {
 
     closeWalletModal();
     setAddress(activeAddress);
+    localStorage.setItem('vault_web_session', JSON.stringify({ address: activeAddress, seed: activeMnemonicSeed, name: currentWalletName }));
     await rpcCall(WALLET_RPC_URL, 'rescan_blockchain');
     updateDashboard();
     showToast('success', 'Wallet restored! Rescanned blockchain.');
@@ -403,9 +405,22 @@ async function updateDashboard() {
 
 // App Initialization
 document.addEventListener('DOMContentLoaded', async () => {
-  setAddress('');
-  document.getElementById('currentWalletName').innerText = 'No Wallet Loaded';
-  openWalletModal();
+  const saved = localStorage.getItem('vault_web_session');
+  if (saved) {
+    try {
+      const data = JSON.parse(saved);
+      activeAddress = data.address || '';
+      activeMnemonicSeed = data.seed || '';
+      currentWalletName = data.name || 'Web Wallet';
+      setAddress(activeAddress);
+    } catch (e) {
+      setAddress('');
+      openWalletModal();
+    }
+  } else {
+    setAddress('');
+    openWalletModal();
+  }
   updateDashboard();
   setInterval(updateDashboard, 3000);
 });
