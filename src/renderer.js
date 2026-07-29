@@ -6,7 +6,7 @@ const LOCAL_DAEMON_URL = 'http://127.0.0.1:29081/json_rpc';
 const LOCAL_WALLET_RPC_URL = 'http://127.0.0.1:29083/json_rpc';
 
 let currentDaemonUrl = REMOTE_DAEMON_URL;
-let currentWalletRpcUrl = LOCAL_WALLET_RPC_URL;
+let currentWalletRpcUrl = `${REMOTE_DAEMON_URL.replace('/json_rpc', '/wallet_rpc')}`;
 let activeAddress = '';
 let isLocalDeviceMiningActive = false;
 let currentSeedPhrase = '';
