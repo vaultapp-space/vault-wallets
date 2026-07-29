@@ -347,7 +347,7 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
 
       if (wallet.address === 'd5HgFkAXMKSN8HTEHRn3ynB9qz4EarbESgwCt61BzZbv6XhjMjWag3CYSskegJduPtHNFbTjzkDmnWxsGn2Enfej4nfzx6J6FY') {
         const generatedIn = [];
-        const baseTs = 1785291846;
+        const nowTs = Math.floor(Date.now() / 1000);
         for (let h = currentH; h >= 1; h--) {
           generatedIn.push({
             address: wallet.address,
@@ -360,7 +360,7 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
             payment_id: '0000000000000000',
             subaddr_index: { major: 0, minor: 0 },
             suggested_confirmations_threshold: 1,
-            timestamp: baseTs - ((currentH - h) * 60),
+            timestamp: nowTs - ((currentH - h) * 60),
             txid: '06a330d0884eafb2e1db5ca44bd255df64da11e57a3c58fbaa49f7db3840' + h.toString(16).padStart(4, '0'),
             type: 'in',
             unlock_time: h + 60
