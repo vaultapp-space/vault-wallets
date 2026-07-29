@@ -481,8 +481,15 @@ function renderTransactions() {
   container.innerHTML = filtered.map(tx => {
     const isIn = tx.type === 'in';
     const isPending = tx.type === 'pending';
+    const isOut = tx.type === 'out';
     const icon = isPending ? '⏳' : (isIn ? '📥' : '📤');
-    const typeLabel = isPending ? 'Pending Transfer' : (isIn ? 'Received VLT' : 'Sent VLT');
+
+    let recipientShort = '';
+    if (isOut && tx.address) {
+      recipientShort = ` to ${tx.address.substring(0, 8)}...${tx.address.substring(tx.address.length - 6)}`;
+    }
+
+    const typeLabel = isPending ? 'Pending Transfer' : (isIn ? 'Received VLT' : `Sent VLT${recipientShort}`);
     const amountStr = ((tx.amount || 0) / 1e12).toFixed(6);
     const dateStr = tx.timestamp ? new Date(tx.timestamp * 1000).toLocaleString() : `Block #${tx.height || 0}`;
     const txHash = tx.txid || tx.tx_hash || '';
