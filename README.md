@@ -1,6 +1,9 @@
 # 🛡️ VAULT (VLT) — Desktop Core GUI Wallet (macOS & Windows)
 
-[![Official Website](https://img.shields.io/badge/Website-vaultapp.space-00f2fe?style=for-the-badge&logo=googlechrome&logoColor=white)](https://vaultapp.space)
+[![Website](https://img.shields.io/badge/Website-vaultapp.space-00f2fe?style=for-the-badge&logo=googlechrome&logoColor=white)](https://vaultapp.space)
+[![X / Twitter](https://img.shields.io/badge/X%2F%20Twitter-@VaultMe-1DA1F2?style=for-the-badge&logo=x&logoColor=white)](https://x.com/VaultMe)
+[![Telegram](https://img.shields.io/badge/Telegram-@Vault__Space-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/Vault_Space)
+[![Discord](https://img.shields.io/badge/Discord-Join_Community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/VZyvT)
 [![Blockchain Explorer](https://img.shields.io/badge/Explorer-8.229.216.134%3A3000-7f00ff?style=for-the-badge&logo=express&logoColor=white)](http://8.229.216.134:3000)
 [![macOS Core Wallet](https://img.shields.io/badge/macOS_Core_Wallet-v1.1.0-ff007f?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.0/VAULT-Wallet-1.1.0-arm64.dmg)
 [![Windows Core Wallet](https://img.shields.io/badge/Windows_Core_Wallet-v1.1.0-10b981?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.0/VAULT-Wallet.1.1.0.exe)
@@ -9,6 +12,17 @@
 Welcome to the official repository for the **VAULT (VLT) Core GUI Wallet** — available as native pre-built core wallet installers for **macOS (Apple Silicon)** and **Windows (64-bit)**.
 
 VAULT is an untraceable, privacy-centric cryptocurrency built on CryptoNote and Ring Confidential Transactions (RingCT).
+
+---
+
+## 🌐 Official Channels & Social Links
+
+- **🌐 Website**: [https://vaultapp.space](https://vaultapp.space)
+- **𝕏 / Twitter**: [@VaultMe](https://x.com/VaultMe)
+- **💬 Telegram Community**: [@Vault_Space](https://t.me/Vault_Space)
+- **👾 Discord Server**: [Join Discord Community](https://discord.gg/VZyvT)
+- **🔍 Block Explorer**: [http://8.229.216.134:3000](http://8.229.216.134:3000)
+- **⚙️ C++ Daemon Repository**: [https://github.com/vaultapp-space/VAULT](https://github.com/vaultapp-space/VAULT)
 
 ---
 
@@ -23,8 +37,8 @@ VAULT is an untraceable, privacy-centric cryptocurrency built on CryptoNote and 
 ### 🪟 Windows Releases
 | Download Package | Installer File | Notes |
 | :--- | :--- | :--- |
+| **[Download Setup Installer](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.0/VAULT-Wallet.Setup.1.1.0.exe)** | `VAULT-Wallet Setup 1.1.0.exe` | Standard Windows Installation Wizard |
 | **[Download Portable .EXE](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.0/VAULT-Wallet.1.1.0.exe)** | `VAULT-Wallet 1.1.0.exe` | Standalone Executable (Runs without setup) |
-| **[Download Setup Installer](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.0/VAULT-Wallet-Setup-1.1.0.exe)** | `VAULT-Wallet Setup 1.1.0.exe` | Standard Windows Installation Wizard |
 | **[Download .ZIP Archive](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.0/VAULT-Wallet-1.1.0-win.zip)** | `VAULT-Wallet-1.1.0-win.zip` | Windows Zip Release Bundle |
 
 ---
@@ -61,7 +75,7 @@ The VAULT GUI Wallet features a **Pure Pitch Black Theme (`#000000`)** designed 
 ---
 
 ### 🪟 2. Windows Installation (.EXE)
-1. Download **[VAULT-Wallet 1.1.0.exe](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.0/VAULT-Wallet.1.1.0.exe)** or **[VAULT-Wallet Setup 1.1.0.exe](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.0/VAULT-Wallet-Setup-1.1.0.exe)**.
+1. Download **[VAULT-Wallet Setup 1.1.0.exe](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.0/VAULT-Wallet.Setup.1.1.0.exe)** or **[VAULT-Wallet 1.1.0.exe](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.0/VAULT-Wallet.1.1.0.exe)**.
 2. Double-click to launch and run the wallet.
 
 ---
