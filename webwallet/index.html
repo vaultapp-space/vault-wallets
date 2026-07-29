@@ -80,6 +80,9 @@
         <button class="nav-item active" data-tab="overview" onclick="switchTab('overview')">
           <span class="tab-icon">📊</span> Overview
         </button>
+        <button class="nav-item" data-tab="explorer" onclick="switchTab('explorer')">
+          <span class="tab-icon">🔍</span> Explorer
+        </button>
         <button class="nav-item" data-tab="send" onclick="switchTab('send')">
           <span class="tab-icon">💸</span> Send VLT
         </button>
@@ -109,6 +112,10 @@
               <span id="netHashrate" class="stat-value">0 H/s</span>
             </div>
             <div class="glass-card stat-box">
+              <span class="stat-label">Circulating Supply</span>
+              <span id="netSupply" class="stat-value">0 VLT</span>
+            </div>
+            <div class="glass-card stat-box">
               <span class="stat-label">Network Status</span>
               <span id="netStatusText" class="stat-value text-green">Online (node.vaultapp.space)</span>
             </div>
@@ -123,6 +130,60 @@
             <div class="banner-btns">
               <button class="btn btn-primary" onclick="switchTab('send')">Send Payment</button>
               <button class="btn btn-secondary" onclick="switchTab('receive')">Receive VLT</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Blockchain Explorer -->
+        <div id="tab-explorer" class="tab-view">
+          <div class="glass-card explorer-search-card">
+            <h2>VAULT Blockchain Explorer</h2>
+            <p class="form-desc">Explore live blocks, transactions, network height, and chain statistics.</p>
+            <div class="search-box-row">
+              <input type="text" id="explorerSearchInput" class="form-control mono" placeholder="Search by Block Height (e.g. 1190) or Block Hash...">
+              <button class="btn btn-primary" onclick="searchBlockExplorer()">🔍 Search</button>
+            </div>
+          </div>
+
+          <div class="overview-grid mt-20">
+            <div class="glass-card stat-box">
+              <span class="stat-label">Block Height</span>
+              <span id="expHeight" class="stat-value">0</span>
+            </div>
+            <div class="glass-card stat-box">
+              <span class="stat-label">Network Difficulty</span>
+              <span id="expDiff" class="stat-value">0</span>
+            </div>
+            <div class="glass-card stat-box">
+              <span class="stat-label">Hashrate</span>
+              <span id="expHashrate" class="stat-value">0 H/s</span>
+            </div>
+            <div class="glass-card stat-box">
+              <span class="stat-label">Circulating Supply</span>
+              <span id="expSupply" class="stat-value">0 VLT</span>
+            </div>
+          </div>
+
+          <div class="glass-card history-card mt-20">
+            <div class="history-header">
+              <h2>Recent Mined Blocks</h2>
+              <button class="btn btn-outline btn-sm" onclick="loadExplorerData()">🔄 Refresh</button>
+            </div>
+            <div class="table-responsive">
+              <table class="tx-table">
+                <thead>
+                  <tr>
+                    <th>Height</th>
+                    <th>Block Hash</th>
+                    <th>Transactions</th>
+                    <th>Block Reward</th>
+                    <th>Age</th>
+                  </tr>
+                </thead>
+                <tbody id="recentBlocksTbody">
+                  <tr><td colspan="5" class="table-empty">Loading recent blocks...</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -317,6 +378,22 @@
           <button class="btn btn-secondary" onclick="closeConfirmModal()">Cancel</button>
           <button class="btn btn-primary" onclick="executeSendTransaction()">Confirm & Broadcast</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Block Detail Modal -->
+  <div id="blockDetailModal" class="modal-backdrop">
+    <div class="modal-box modal-lg">
+      <div class="modal-header">
+        <h3 id="blockModalTitle">Block Details</h3>
+        <button class="btn-close" onclick="closeBlockModal()">✕</button>
+      </div>
+      <div class="modal-body" id="blockModalBody">
+        <!-- Dynamically populated -->
+      </div>
+      <div class="modal-footer-btns" style="padding: 16px;">
+        <button class="btn btn-secondary" onclick="closeBlockModal()">Close</button>
       </div>
     </div>
   </div>

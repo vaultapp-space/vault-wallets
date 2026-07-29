@@ -83,7 +83,7 @@ The receiver scans the blockchain using their Private View Key ($b$). Only the i
 | **Target Block Time** | `60 seconds` |
 | **Initial Block Reward** | `~17.578350 VLT` per block (`17,578,350,278,193` atomic units) |
 | **Atomic Unit Divisor** | $10^{12}$ (1 VLT = 1,000,000,000,000 atomic units) |
-| **Block Confirmation Lock** | `60 blocks` (~60 minutes for block maturity) |
+| **Block Confirmation Lock** | `60 blocks` (~60 blocks for block maturity) |
 | **Default P2P Port** | `29080` |
 | **Daemon RPC Port** | `29081` |
 | **Wallet RPC Port** | `29083` |
@@ -123,41 +123,33 @@ The **VAULT Core GUI Wallet** is a cross-platform desktop application built with
 
 ---
 
-## 5. VAULT Web Application & Ecosystem (`vaultapp.space`)
+## 5. VAULT Web Application Ecosystem (`vaultapp.space`)
 
-The **VAULT Web Application** hosted at [https://vaultapp.space](https://vaultapp.space) serves as the primary decentralized portal for the VAULT ecosystem. It combines privacy-first financial operations with end-to-end encrypted communication primitives to deliver a unified, zero-trust web experience.
+The **VAULT Web Ecosystem** at [https://vaultapp.space](https://vaultapp.space) provides web-native accessibility for users who require instant access to their funds without installing local software or maintaining heavy blockchain storage.
 
 ```
 +-----------------------------------------------------------------------+
 |                    VAULTAPP.SPACE WEB ECOSYSTEM                       |
 |                                                                       |
 |   +------------------------+             +------------------------+   |
-|   | Web Wallet Application |             | Encrypted Messaging    |   |
-|   | webwallet.vaultapp.space             | Double-Ratchet E2EE    |   |
+|   | Web Wallet App         |             | Block Explorer         |   |
+|   | webwallet.vaultapp.space             | explorer.vaultapp.space|   |
 |   +------------------------+             +------------------------+   |
-|   | Remote SSL Daemon Node |             | Block Explorer         |   |
-|   | node.vaultapp.space    |             | explorer.vaultapp.space|   |
+|   | Remote SSL Daemon Node |             | Zero-Trust Client Crypto |   |
+|   | node.vaultapp.space    |             | Web API & WebSockets   |   |
 |   +------------------------+             +------------------------+   |
 +-----------------------------------------------------------------------+
 ```
 
-### 5.1 Zero-Trust Web Wallet (`https://webwallet.vaultapp.space`)
-- **Client-Side Cryptography**: Cryptographic key derivation and seed generation occur 100% locally within browser memory using Web Crypto APIs. No plain-text private keys, seed phrases, or spending credentials ever leave the client device.
-- **Light-Client Remote Node Bridge**: Connects seamlessly over encrypted HTTPS JSON-RPC (`https://node.vaultapp.space/json_rpc`) hosted on high-availability Google Cloud infrastructure, allowing instant balance retrieval and transaction broadcast without downloading the full blockchain database.
-- **25-Word Mnemonic Management**: Complete generation, validation, and deterministic wallet restoration supporting standard 25-word mnemonic seed phrases.
-- **Responsive QR Code Generator & Scanner**: Features integrated responsive QR rendering powered by QRious for effortless mobile payments and address sharing.
-- **Subaddress & Contact Management**: Supports creating secondary stealth subaddresses and saving recipient contact profiles directly in local encrypted browser storage (`localStorage`).
+### 5.1 Web Wallet Architecture (`https://webwallet.vaultapp.space`)
+- **Zero-Trust Client Cryptography**: Keys and seeds are generated and stored exclusively within browser memory (`localStorage` / `sessionStorage`). No plain-text private keys or seeds are ever transmitted to external servers.
+- **Light-Client Remote Node Bridge**: Communicates over secure HTTPS JSON-RPC (`https://node.vaultapp.space/json_rpc`) hosted on Google Cloud infrastructure.
+- **Browser QR Scanner & Rendering**: Features responsive QR rendering powered by QRious for seamless cross-device mobile interactions.
+- **Instant Session Restore**: Load wallets in seconds using standard 25-word seed phrases.
 
-### 5.2 End-to-End Encrypted Anonymous Messaging
-- **Double-Ratchet Signal Protocol**: Implements state-of-the-art Double-Ratchet E2EE algorithms providing forward secrecy and post-compromise security for peer-to-peer messaging.
-- **Zero Personally Identifiable Information (Zero PII)**: Requires zero phone numbers, email addresses, or real-world identity verification. User identities are tied strictly to cryptographic key pairs.
-- **Zero Persistence & 24-Hour Auto-Delete**: All message payloads and ephemeral session metadata automatically expire and purge after 24 hours, ensuring zero permanent digital footprint on server relays or client storage.
-- **Confidential Voice & Video Calls**: Provides encrypted peer-to-peer audio and video communication routes layered with WebRTC and obfuscated transport nodes.
-- **zk-SNARK Payment Rails**: Integrates client-side zero-knowledge proof payment rails enabling private settlement directly within communication sessions.
-
-### 5.3 Block Explorer (`https://explorer.vaultapp.space`)
-- **Privacy-Preserving Inspection**: Real-time visualization of network metrics (block height, cumulative difficulty, transaction counts, and block header hashes) without exposing ring signature members or confidential transfer values.
-- **RESTful API Endpoint**: Exposes high-throughput JSON API endpoints for developer integration, transaction verification, and network monitoring.
+### 5.2 Block Explorer (`https://explorer.vaultapp.space`)
+- **Privacy-Preserving Block Inspection**: Real-time visualization of block heights, total transaction volume, network cumulative difficulty, hash rates, and block header hashes without exposing confidential ring details.
+- **RESTful API**: Exposes JSON endpoints for developers to query network status and block validation.
 
 ---
 

@@ -6,7 +6,7 @@ const LOCAL_DAEMON_URL = 'http://127.0.0.1:29081/json_rpc';
 const LOCAL_WALLET_RPC_URL = 'http://127.0.0.1:29083/json_rpc';
 
 let currentDaemonUrl = REMOTE_DAEMON_URL;
-let currentWalletRpcUrl = `${REMOTE_DAEMON_URL.replace('/json_rpc', '/wallet_rpc')}`;
+let currentWalletRpcUrl = LOCAL_WALLET_RPC_URL;
 let activeAddress = '';
 let currentSeedPhrase = '';
 
@@ -65,6 +65,7 @@ function switchTab(tabName) {
 
   if (tabName === 'receive') renderQrCode(activeAddress);
   if (tabName === 'history') loadTransactions();
+  if (tabName === 'explorer') loadDesktopExplorerData();
 }
 
 // Modal Control
@@ -260,9 +261,42 @@ async function updateDashboard() {
         syncPct = 0;
       }
 
-      document.getElementById('netHeight').innerText = d.height || 0;
-      document.getElementById('netDifficulty').innerText = Number(d.difficulty || 1).toLocaleString();
-      document.getElementById('netHashrate').innerText = `${d.hashrate || Math.round((d.difficulty || 1) / 120)} H/s`;
+      const height = d.height || 0;
+      const diff = d.difficulty || 1;
+      const target = d.target || 60;
+      const rawHashrate = d.hashrate || (diff / target);
+
+      let hashrateStr = `${Math.round(rawHashrate)} H/s`;
+      if (rawHashrate >= 1000000) {
+        hashrateStr = `${(rawHashrate / 1000000).toFixed(2)} MH/s`;
+      } else if (rawHashrate >= 1000) {
+        hashrateStr = `${(rawHashrate / 1000).toFixed(2)} kH/s`;
+      } else {
+        hashrateStr = `${rawHashrate.toFixed(1)} H/s`;
+      }
+
+      let supplyStr = '';
+      try {
+        const sumRes = await ipcRenderer.invoke('rpc-call', {
+          url: currentDaemonUrl,
+          method: 'get_coinbase_tx_sum',
+          params: { height: 0, count: height }
+        });
+        if (sumRes && sumRes.success && sumRes.data && sumRes.data.emission_amount) {
+          supplyStr = `${((sumRes.data.emission_amount) / 1e12).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} VLT`;
+        }
+      } catch (e) {}
+
+      if (!supplyStr && height > 0) {
+        const REWARD_PER_BLOCK = 17578350278193;
+        supplyStr = `${((height * REWARD_PER_BLOCK) / 1e12).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} VLT`;
+      }
+
+      document.getElementById('netHeight').innerText = height;
+      document.getElementById('netDifficulty').innerText = Number(diff).toLocaleString();
+      document.getElementById('netHashrate').innerText = hashrateStr;
+      const netSupEl = document.getElementById('netSupply');
+      if (netSupEl) netSupEl.innerText = supplyStr || '0.00 VLT';
       document.getElementById('nodeDot').className = 'status-dot green';
 
       // Show connection source & sync status
@@ -532,11 +566,11 @@ async function sendMax() {
     });
     if (resBal.success && resBal.data) {
       const unlockedAtomic = resBal.data.unlocked_balance || 0;
-      const estimatedFeeAtomic = 10000000000; // ~0.01 VLT fee buffer
+      const estimatedFeeAtomic = 120000000; // 0.000120 VLT fee buffer
       const maxAtomic = Math.max(0, unlockedAtomic - estimatedFeeAtomic);
       const maxVlt = (maxAtomic / 1e12).toFixed(6);
       document.getElementById('sendAmount').value = maxVlt;
-      showToast('info', `Send Max calculated: ${maxVlt} VLT (0.01 VLT fee reserved)`);
+      showToast('info', `Send Max calculated: ${maxVlt} VLT (0.00012 VLT fee reserved)`);
     }
   } catch (err) {
     showToast('error', 'Error calculating Send Max: ' + err.message);
@@ -820,8 +854,198 @@ fetchActiveAddress().then(async () => {
   loadSubaddresses();
   updateDashboard();
   updateFeePreview();
+  loadDesktopExplorerData();
 });
 
 setInterval(updateDashboard, 3000);
+
+// Desktop Explorer Logic
+async function loadDesktopExplorerData() {
+  const tbody = document.getElementById('desktopRecentBlocksTbody');
+  try {
+    const resInfo = await ipcRenderer.invoke('rpc-call', {
+      url: currentDaemonUrl,
+      method: 'get_info'
+    });
+
+    if (!resInfo || !resInfo.success || !resInfo.data) return;
+    const d = resInfo.data;
+
+    const currentH = d.height || 0;
+    const diff = d.difficulty || 1;
+    const target = d.target || 60;
+    const rawHashrate = d.hashrate || (diff / target);
+
+    let hashrateStr = `${Math.round(rawHashrate)} H/s`;
+    if (rawHashrate >= 1000000) {
+      hashrateStr = `${(rawHashrate / 1000000).toFixed(2)} MH/s`;
+    } else if (rawHashrate >= 1000) {
+      hashrateStr = `${(rawHashrate / 1000).toFixed(2)} kH/s`;
+    } else {
+      hashrateStr = `${rawHashrate.toFixed(1)} H/s`;
+    }
+
+    let supplyStr = '';
+    try {
+      const sumRes = await ipcRenderer.invoke('rpc-call', {
+        url: currentDaemonUrl,
+        method: 'get_coinbase_tx_sum',
+        params: { height: 0, count: currentH }
+      });
+      if (sumRes && sumRes.success && sumRes.data && sumRes.data.emission_amount) {
+        supplyStr = `${((sumRes.data.emission_amount) / 1e12).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} VLT`;
+      }
+    } catch (e) {}
+
+    if (!supplyStr && currentH > 0) {
+      const REWARD_PER_BLOCK = 17578350278193;
+      supplyStr = `${((currentH * REWARD_PER_BLOCK) / 1e12).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} VLT`;
+    }
+
+    const lastHeaderRes = await ipcRenderer.invoke('rpc-call', {
+      url: currentDaemonUrl,
+      method: 'get_last_block_header'
+    });
+
+    let lastRewardStr = '17.57 VLT';
+    let cumDiffStr = Number(d.cumulative_difficulty || 0).toLocaleString();
+
+    if (lastHeaderRes && lastHeaderRes.success && lastHeaderRes.data && lastHeaderRes.data.block_header) {
+      const bh = lastHeaderRes.data.block_header;
+      if (bh.reward) lastRewardStr = `${(bh.reward / 1e12).toFixed(4)} VLT`;
+      if (bh.cumulative_difficulty) cumDiffStr = Number(bh.cumulative_difficulty).toLocaleString();
+    }
+
+    const hEl = document.getElementById('deskExpHeight');
+    const diffEl = document.getElementById('deskExpDiff');
+    const hashEl = document.getElementById('deskExpHashrate');
+    const supEl = document.getElementById('deskExpSupply');
+    const lastRewEl = document.getElementById('deskExpLastReward');
+    const cumDiffEl = document.getElementById('deskExpCumDiff');
+
+    if (hEl) hEl.innerText = currentH;
+    if (diffEl) diffEl.innerText = Number(diff).toLocaleString();
+    if (hashEl) hashEl.innerText = hashrateStr;
+    if (supEl) supEl.innerText = supplyStr || '0.00 VLT';
+    if (lastRewEl) lastRewEl.innerText = lastRewardStr;
+    if (cumDiffEl) cumDiffEl.innerText = cumDiffStr;
+
+    if (tbody && currentH > 0) {
+      const startH = Math.max(1, currentH - 9);
+      const rangeRes = await ipcRenderer.invoke('rpc-call', {
+        url: currentDaemonUrl,
+        method: 'get_block_headers_range',
+        params: { start_height: startH, end_height: currentH }
+      });
+
+      if (rangeRes && rangeRes.success && rangeRes.data && Array.isArray(rangeRes.data.headers)) {
+        const blocks = [...rangeRes.data.headers].reverse();
+        tbody.innerHTML = blocks.map(b => {
+          const rewardVlt = ((b.reward || REWARD_PER_BLOCK) / 1e12).toFixed(6);
+          const shortHash = b.hash ? `${b.hash.substring(0, 12)}...${b.hash.substring(b.hash.length - 8)}` : 'N/A';
+          const ageSec = b.timestamp ? Math.max(0, Math.floor(Date.now() / 1000) - b.timestamp) : 0;
+          const ageText = ageSec > 3600 ? `${Math.floor(ageSec / 3600)}h ago` : (ageSec > 60 ? `${Math.floor(ageSec / 60)}m ago` : `${ageSec}s ago`);
+
+          return `
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <td style="padding: 10px; font-weight: 700; color: #00e5ff;">#${b.height}</td>
+              <td style="padding: 10px; font-family: monospace; cursor: pointer; color: #a5b4fc;" onclick="openDesktopBlockModalByHash('${b.hash}')" title="Click to view details">${shortHash}</td>
+              <td style="padding: 10px;">${b.num_txes || 0}</td>
+              <td style="padding: 10px; font-weight: 600; color: #00e676;">+${rewardVlt} VLT</td>
+              <td style="padding: 10px; color: #94a3b8; font-size: 12px;">${ageText}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+  } catch (err) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="empty-tx-box">Failed to load recent blocks: ${err.message}</td></tr>`;
+  }
+}
+
+async function searchDesktopBlockExplorer() {
+  const input = document.getElementById('desktopExpSearchInput');
+  if (!input) return;
+  const q = input.value.trim();
+
+  if (!q) {
+    showToast('error', 'Please enter a block height or block hash.');
+    return;
+  }
+
+  try {
+    let res;
+    if (!isNaN(q)) {
+      res = await ipcRenderer.invoke('rpc-call', {
+        url: currentDaemonUrl,
+        method: 'get_block_header_by_height',
+        params: { height: parseInt(q) }
+      });
+    } else {
+      res = await ipcRenderer.invoke('rpc-call', {
+        url: currentDaemonUrl,
+        method: 'get_block_header_by_hash',
+        params: { hash: q }
+      });
+    }
+
+    if (res && res.success && res.data && res.data.block_header) {
+      renderDesktopBlockModalContent(res.data.block_header);
+    } else {
+      showToast('error', 'Block not found for query: ' + q);
+    }
+  } catch (err) {
+    showToast('error', 'Error searching block: ' + err.message);
+  }
+}
+
+async function openDesktopBlockModalByHash(hash) {
+  try {
+    const res = await ipcRenderer.invoke('rpc-call', {
+      url: currentDaemonUrl,
+      method: 'get_block_header_by_hash',
+      params: { hash }
+    });
+    if (res && res.success && res.data && res.data.block_header) {
+      renderDesktopBlockModalContent(res.data.block_header);
+    }
+  } catch (err) {
+    showToast('error', 'Failed to load block: ' + err.message);
+  }
+}
+
+function renderDesktopBlockModalContent(b) {
+  const modal = document.getElementById('desktopBlockModal');
+  const title = document.getElementById('deskBlockModalTitle');
+  const body = document.getElementById('deskBlockModalBody');
+  if (!modal || !body) return;
+
+  if (title) title.innerText = `Block #${b.height}`;
+
+  const rewardVlt = ((b.reward || 0) / 1e12).toFixed(6);
+  const dateStr = b.timestamp ? new Date(b.timestamp * 1000).toLocaleString() : 'N/A';
+
+  body.innerHTML = `
+    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 12px;">
+      <div class="info-row"><span class="info-label">Block Height:</span><span class="info-val green">#${b.height}</span></div>
+      <div class="info-row"><span class="info-label">Block Hash:</span><span class="info-val mono" style="font-size:11px;word-break:break-all;">${b.hash || ''}</span></div>
+      <div class="info-row"><span class="info-label">Previous Hash:</span><span class="info-val mono" style="font-size:11px;word-break:break-all;">${b.prev_hash || ''}</span></div>
+      <div class="info-row"><span class="info-label">Block Reward:</span><span class="info-val green">+${rewardVlt} VLT</span></div>
+      <div class="info-row"><span class="info-label">Difficulty:</span><span class="info-val">${Number(b.difficulty || 0).toLocaleString()}</span></div>
+      <div class="info-row"><span class="info-label">Transactions Count:</span><span class="info-val">${b.num_txes || 0}</span></div>
+      <div class="info-row"><span class="info-label">Block Weight / Size:</span><span class="info-val">${b.block_size || 0} bytes</span></div>
+      <div class="info-row"><span class="info-label">Nonce:</span><span class="info-val mono">${b.nonce || 0}</span></div>
+      <div class="info-row"><span class="info-label">Timestamp:</span><span class="info-val">${dateStr}</span></div>
+    </div>
+  `;
+
+  modal.classList.add('active');
+}
+
+function closeDesktopBlockModal() {
+  const modal = document.getElementById('desktopBlockModal');
+  if (modal) modal.classList.remove('active');
+}
+
 
 

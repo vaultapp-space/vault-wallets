@@ -3,8 +3,8 @@
    https://webwallet.vaultapp.space
    ========================================================================== */
 
-const RPC_NODE_URL = '/json_rpc';
-const WALLET_RPC_URL = '/wallet_rpc';
+const RPC_NODE_URL = 'https://node.vaultapp.space/json_rpc';
+const WALLET_RPC_URL = 'https://node.vaultapp.space/wallet_rpc';
 const EXPLORER_URL = 'https://explorer.vaultapp.space';
 
 let activeAddress = '';
@@ -87,6 +87,7 @@ function switchTab(tabName) {
 
   if (tabName === 'history') loadTransactions();
   if (tabName === 'receive') renderQrCode(activeAddress);
+  if (tabName === 'explorer') loadExplorerData();
 }
 
 // Modals
@@ -370,12 +371,44 @@ async function updateDashboard() {
     // 1. Fetch Node Info (Height, Difficulty, Hashrate & Sync status)
     const info = await rpcCall(RPC_NODE_URL, 'get_info');
     if (info) {
-      document.getElementById('netHeight').innerText = info.height || 0;
-      document.getElementById('headerNetHeight').innerText = info.height || 0;
-      document.getElementById('netDifficulty').innerText = Number(info.difficulty || 1).toLocaleString();
-      document.getElementById('netHashrate').innerText = `${info.hashrate || Math.round((info.difficulty || 1) / 120)} H/s`;
+      const height = info.height || 0;
+      const diff = info.difficulty || 1;
+      const target = info.target || 60;
+      const rawHashrate = info.hashrate || (diff / target);
+
+      let hashrateStr = `${Math.round(rawHashrate)} H/s`;
+      if (rawHashrate >= 1000000) {
+        hashrateStr = `${(rawHashrate / 1000000).toFixed(2)} MH/s`;
+      } else if (rawHashrate >= 1000) {
+        hashrateStr = `${(rawHashrate / 1000).toFixed(2)} kH/s`;
+      } else {
+        hashrateStr = `${rawHashrate.toFixed(1)} H/s`;
+      }
+
+      let supplyStr = '';
+      try {
+        const sumRes = await rpcCall(RPC_NODE_URL, 'get_coinbase_tx_sum', { height: 0, count: height });
+        if (sumRes && sumRes.emission_amount) {
+          supplyStr = `${((sumRes.emission_amount) / 1e12).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} VLT`;
+        }
+      } catch (e) {}
+
+      if (!supplyStr && height > 0) {
+        const REWARD_PER_BLOCK = 17578350278193;
+        supplyStr = `${((height * REWARD_PER_BLOCK) / 1e12).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} VLT`;
+      }
+
+      document.getElementById('netHeight').innerText = height;
+      document.getElementById('headerNetHeight').innerText = height;
+      document.getElementById('netDifficulty').innerText = Number(diff).toLocaleString();
+      document.getElementById('netHashrate').innerText = hashrateStr;
+      const netSupplyEl = document.getElementById('netSupply');
+      if (netSupplyEl) netSupplyEl.innerText = supplyStr || '0.00 VLT';
+
       document.getElementById('nodeDot').className = 'status-dot green';
       document.getElementById('nodeLabel').innerText = 'Connected to Remote Node (node.vaultapp.space)';
+      const statusEl = document.getElementById('netStatusText');
+      if (statusEl) statusEl.innerText = 'Online (node.vaultapp.space)';
     }
 
     // 2. Fetch Balance ONLY if user has created or restored an active session wallet
@@ -400,6 +433,8 @@ async function updateDashboard() {
   } catch (err) {
     document.getElementById('nodeDot').className = 'status-dot red';
     document.getElementById('nodeLabel').innerText = 'Reconnecting to Node...';
+    const statusEl = document.getElementById('netStatusText');
+    if (statusEl) statusEl.innerText = 'Offline / Reconnecting...';
   }
 }
 
@@ -422,5 +457,151 @@ document.addEventListener('DOMContentLoaded', async () => {
     openWalletModal();
   }
   updateDashboard();
+  loadExplorerData();
   setInterval(updateDashboard, 3000);
 });
+
+// Explorer Logic & Block Details
+async function loadExplorerData() {
+  const tbody = document.getElementById('recentBlocksTbody');
+  try {
+    const info = await rpcCall(RPC_NODE_URL, 'get_info');
+    if (!info) return;
+
+    const currentH = info.height || 0;
+    const diff = info.difficulty || 1;
+    const target = info.target || 60;
+    const rawHashrate = info.hashrate || (diff / target);
+
+    let hashrateStr = `${Math.round(rawHashrate)} H/s`;
+    if (rawHashrate >= 1000000) {
+      hashrateStr = `${(rawHashrate / 1000000).toFixed(2)} MH/s`;
+    } else if (rawHashrate >= 1000) {
+      hashrateStr = `${(rawHashrate / 1000).toFixed(2)} kH/s`;
+    } else {
+      hashrateStr = `${rawHashrate.toFixed(1)} H/s`;
+    }
+
+    let supplyStr = '';
+    try {
+      const sumRes = await rpcCall(RPC_NODE_URL, 'get_coinbase_tx_sum', { height: 0, count: currentH });
+      if (sumRes && sumRes.emission_amount) {
+        supplyStr = `${((sumRes.emission_amount) / 1e12).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} VLT`;
+      }
+    } catch (e) {}
+
+    if (!supplyStr && currentH > 0) {
+      const REWARD_PER_BLOCK = 17578350278193;
+      supplyStr = `${((currentH * REWARD_PER_BLOCK) / 1e12).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} VLT`;
+    }
+
+    const expHeightEl = document.getElementById('expHeight');
+    const expDiffEl = document.getElementById('expDiff');
+    const expHashrateEl = document.getElementById('expHashrate');
+    const expSupplyEl = document.getElementById('expSupply');
+
+    if (expHeightEl) expHeightEl.innerText = currentH;
+    if (expDiffEl) expDiffEl.innerText = Number(diff).toLocaleString();
+    if (expHashrateEl) expHashrateEl.innerText = hashrateStr;
+    if (expSupplyEl) expSupplyEl.innerText = supplyStr || '0.00 VLT';
+
+    if (tbody && currentH > 0) {
+      const startH = Math.max(1, currentH - 9);
+      const rangeRes = await rpcCall(RPC_NODE_URL, 'get_block_headers_range', { start_height: startH, end_height: currentH });
+
+      if (rangeRes && rangeRes.headers && Array.isArray(rangeRes.headers)) {
+        const blocks = [...rangeRes.headers].reverse();
+        tbody.innerHTML = blocks.map(b => {
+          const rewardVlt = ((b.reward || REWARD_PER_BLOCK) / 1e12).toFixed(6);
+          const shortHash = b.hash ? `${b.hash.substring(0, 12)}...${b.hash.substring(b.hash.length - 8)}` : 'N/A';
+          const ageSec = b.timestamp ? Math.max(0, Math.floor(Date.now() / 1000) - b.timestamp) : 0;
+          const ageText = ageSec > 3600 ? `${Math.floor(ageSec / 3600)}h ago` : (ageSec > 60 ? `${Math.floor(ageSec / 60)}m ago` : `${ageSec}s ago`);
+
+          return `
+            <tr>
+              <td style="font-weight:700;color:#00e5ff;">#${b.height}</td>
+              <td class="mono" style="cursor:pointer;color:#a5b4fc;" onclick="openBlockModalByData('${b.hash}')" title="Click to view details">${shortHash}</td>
+              <td>${b.num_txes || 0}</td>
+              <td style="font-weight:600;color:#00e676;">+${rewardVlt} VLT</td>
+              <td style="color:#94a3b8;font-size:12px;">${ageText}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+  } catch (err) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="table-empty">Failed to load recent blocks: ${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+async function searchBlockExplorer() {
+  const input = document.getElementById('explorerSearchInput');
+  if (!input) return;
+  const q = input.value.trim();
+
+  if (!q) {
+    showToast('error', 'Please enter a block height or block hash.');
+    return;
+  }
+
+  try {
+    let res;
+    if (!isNaN(q)) {
+      res = await rpcCall(RPC_NODE_URL, 'get_block_header_by_height', { height: parseInt(q) });
+    } else {
+      res = await rpcCall(RPC_NODE_URL, 'get_block_header_by_hash', { hash: q });
+    }
+
+    if (res && res.block_header) {
+      renderBlockModalContent(res.block_header);
+    } else {
+      showToast('error', 'Block not found for query: ' + q);
+    }
+  } catch (err) {
+    showToast('error', 'Error fetching block details: ' + err.message);
+  }
+}
+
+async function openBlockModalByData(hash) {
+  try {
+    const res = await rpcCall(RPC_NODE_URL, 'get_block_header_by_hash', { hash });
+    if (res && res.block_header) {
+      renderBlockModalContent(res.block_header);
+    }
+  } catch (err) {
+    showToast('error', 'Failed to load block: ' + err.message);
+  }
+}
+
+function renderBlockModalContent(b) {
+  const modal = document.getElementById('blockDetailModal');
+  const title = document.getElementById('blockModalTitle');
+  const body = document.getElementById('blockModalBody');
+  if (!modal || !body) return;
+
+  if (title) title.innerText = `Block #${b.height}`;
+
+  const rewardVlt = ((b.reward || 0) / 1e12).toFixed(6);
+  const dateStr = b.timestamp ? new Date(b.timestamp * 1000).toLocaleString() : 'N/A';
+
+  body.innerHTML = `
+    <div class="confirm-details">
+      <div class="confirm-row"><span class="confirm-label">Block Height:</span><span class="confirm-value text-gold">#${b.height}</span></div>
+      <div class="confirm-row"><span class="confirm-label">Block Hash:</span><span class="confirm-value mono" style="font-size:11px;word-break:break-all;">${b.hash || ''}</span></div>
+      <div class="confirm-row"><span class="confirm-label">Previous Hash:</span><span class="confirm-value mono" style="font-size:11px;word-break:break-all;">${b.prev_hash || ''}</span></div>
+      <div class="confirm-row"><span class="confirm-label">Block Reward:</span><span class="confirm-value" style="color:#00e676;">+${rewardVlt} VLT</span></div>
+      <div class="confirm-row"><span class="confirm-label">Difficulty:</span><span class="confirm-value">${Number(b.difficulty || 0).toLocaleString()}</span></div>
+      <div class="confirm-row"><span class="confirm-label">Transactions Count:</span><span class="confirm-value">${b.num_txes || 0}</span></div>
+      <div class="confirm-row"><span class="confirm-label">Block Size / Weight:</span><span class="confirm-value">${b.block_size || 0} bytes</span></div>
+      <div class="confirm-row"><span class="confirm-label">Nonce:</span><span class="confirm-value mono">${b.nonce || 0}</span></div>
+      <div class="confirm-row"><span class="confirm-label">Timestamp:</span><span class="confirm-value">${dateStr}</span></div>
+    </div>
+  `;
+
+  modal.classList.add('active');
+}
+
+function closeBlockModal() {
+  const modal = document.getElementById('blockDetailModal');
+  if (modal) modal.classList.remove('active');
+}

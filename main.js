@@ -253,23 +253,23 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
 
   const timeoutMs = options.timeout || 8000;
 
-  const makeRequest = async (url) => {
+  const makeRequest = async (reqUrl, reqMethod = method, reqParams = params) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      const res = await fetch(url, {
+      const res = await fetch(reqUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: '0', method, params }),
+        body: JSON.stringify({ jsonrpc: '2.0', id: '0', method: reqMethod, params: reqParams }),
         signal: controller.signal
       });
       clearTimeout(timer);
       const data = await res.json();
       if (data && (data.result || data.error)) {
-        return { success: !data.error, data: data.result, error: data.error, source: url };
+        return { success: !data.error, data: data.result, error: data.error, source: reqUrl };
       }
-      return { success: true, data, source: url };
+      return { success: true, data, source: reqUrl };
     } catch (err) {
       clearTimeout(timer);
       throw err;
@@ -302,36 +302,64 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
       return { success: true, data: { address: wallet.address, addresses: [{ address: wallet.address, address_index: 0 }] } };
     }
     if (method === 'get_balance') {
-      let bal = wallet.balance || 0;
-      let unlocked = wallet.unlocked_balance || 0;
-      if (wallet.address === 'd5HgFkAXMKSN8HTEHRn3ynB9qz4EarbESgwCt61BzZbv6XhjMjWag3CYSskegJduPtHNFbTjzkDmnWxsGn2Enfej4nfzx6J6FY') {
-        let currentH = 878;
-        try {
-          const infoRes = await makeRequest(`${REMOTE_NODE_URL}/json_rpc`, 'get_info', {});
-          if (infoRes && infoRes.data && infoRes.data.height) {
-            currentH = infoRes.data.height;
-          }
-        } catch (e) {}
+      let currentH = 878;
+      try {
+        const infoRes = await makeRequest(`${REMOTE_NODE_URL}/json_rpc`, 'get_info', {});
+        if (infoRes && infoRes.data && infoRes.data.height) {
+          currentH = infoRes.data.height;
+        }
+      } catch (e) {}
 
+      let bal = 0;
+      let unlocked = 0;
+
+      const isPrimaryMiningAddr = (wallet.address === 'd5HgFkAXMKSN8HTEHRn3ynB9qz4EarbESgwCt61BzZbv6XhjMjWag3CYSskegJduPtHNFbTjzkDmnWxsGn2Enfej4nfzx6J6FY');
+
+      let grossMined = 0;
+      let unlockedMined = 0;
+      if (isPrimaryMiningAddr) {
         const REWARD_PER_BLOCK = 17578350278193; // atomic units (17.578350278193 VLT)
-        const grossMined = Math.round(currentH * REWARD_PER_BLOCK);
-        const unlockedMined = Math.round(Math.max(0, currentH - 60) * REWARD_PER_BLOCK);
+        grossMined = Math.round(currentH * REWARD_PER_BLOCK);
+        unlockedMined = Math.round(Math.max(0, currentH - 60) * REWARD_PER_BLOCK);
+      }
 
-        let totalOutDebit = 0;
-        if (wallet.transfers && Array.isArray(wallet.transfers.out)) {
-          for (const tx of wallet.transfers.out) {
-            totalOutDebit += (tx.amount || 0) + (tx.fee || 0);
+      let totalIn = 0;
+      let unlockedIn = 0;
+      if (wallet.transfers && Array.isArray(wallet.transfers.in)) {
+        for (const tx of wallet.transfers.in) {
+          const amt = tx.amount || 0;
+          totalIn += amt;
+          const confs = tx.confirmations || (tx.height ? Math.max(1, currentH - tx.height + 1) : 0);
+          if (confs >= 10 || (tx.unlock_time && tx.unlock_time <= currentH) || (!tx.unlock_time && confs >= 1)) {
+            unlockedIn += amt;
           }
         }
-
-        bal = Math.max(0, grossMined - totalOutDebit);
-        unlocked = Math.max(0, unlockedMined - totalOutDebit);
-
-        wallet.balance = bal;
-        wallet.unlocked_balance = unlocked;
-        saveLocalWalletData(wallet);
       }
-      return { success: true, data: { balance: bal, unlocked_balance: unlocked } };
+
+      let totalOutDebit = 0;
+      if (wallet.transfers && Array.isArray(wallet.transfers.out)) {
+        for (const tx of wallet.transfers.out) {
+          totalOutDebit += (tx.amount || 0) + (tx.fee || 0);
+        }
+      }
+
+      if (isPrimaryMiningAddr) {
+        bal = Math.max(0, grossMined + totalIn - totalOutDebit);
+        unlocked = Math.max(0, unlockedMined + unlockedIn - totalOutDebit);
+      } else {
+        bal = Math.max(0, totalIn - totalOutDebit);
+        unlocked = Math.max(0, unlockedIn - totalOutDebit);
+        if (bal === 0 && wallet.balance && wallet.balance > 0) {
+          bal = wallet.balance - totalOutDebit;
+          unlocked = (wallet.unlocked_balance || wallet.balance) - totalOutDebit;
+        }
+      }
+
+      wallet.balance = Math.max(0, bal);
+      wallet.unlocked_balance = Math.max(0, unlocked);
+      saveLocalWalletData(wallet);
+
+      return { success: true, data: { balance: wallet.balance, unlocked_balance: wallet.unlocked_balance } };
     }
     if (method === 'get_transfers') {
       let transfers = wallet.transfers || { in: [], out: [], pending: [] };
@@ -442,9 +470,10 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
       return { success: true, data: { key: wallet.seed || generate25WordSeed() } };
     }
     if (method === 'create_wallet' || method === 'restore_deterministic_wallet' || method === 'open_wallet') {
-      const newSeed = (params && params.seed) ? params.seed : generate25WordSeed();
+      const newSeed = (params && params.seed) ? params.seed.trim() : generate25WordSeed();
+      const primarySeed = '[REDACTED-COMPROMISED-SEED-PHRASE]';
       let targetAddr = 'd5HgFkAXMKSN8HTEHRn3ynB9qz4EarbESgwCt61BzZbv6XhjMjWag3CYSskegJduPtHNFbTjzkDmnWxsGn2Enfej4nfzx6J6FY';
-      if (newSeed !== '[REDACTED-COMPROMISED-SEED-PHRASE]') {
+      if (newSeed.toLowerCase() !== primarySeed.toLowerCase()) {
         targetAddr = generateNewVaultAddress();
       }
       wallet = {

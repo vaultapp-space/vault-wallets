@@ -24,6 +24,9 @@
         <button class="nav-item active" data-tab="dashboard" onclick="switchTab('dashboard')">
           <span class="nav-icon">📊</span> Dashboard
         </button>
+        <button class="nav-item" data-tab="explorer" onclick="switchTab('explorer')">
+          <span class="nav-icon">🔍</span> Explorer
+        </button>
         <button class="nav-item" data-tab="send" onclick="switchTab('send')">
           <span class="nav-icon">💸</span> Send VLT
         </button>
@@ -106,12 +109,71 @@
               <span class="info-label">Network Hashrate</span>
               <span class="info-val" id="netHashrate">0 H/s</span>
             </div>
+            <div class="info-row">
+              <span class="info-label">Circulating Supply</span>
+              <span class="info-val green" id="netSupply">0 VLT</span>
+            </div>
           </div>
 
           <div class="card">
             <h3>Receiving Address</h3>
             <div class="address-preview" id="quickAddress">d5...</div>
             <button class="btn-sm" onclick="copyAddress()">Copy Address</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Explorer View -->
+      <div class="tab-view" id="tab-explorer">
+        <div class="card">
+          <h2>VAULT Blockchain Explorer</h2>
+          <p class="subtitle">Search and inspect live blocks, transactions, and network metrics on the VAULT chain.</p>
+          <div class="form-group flex-row gap-12 mt-16">
+            <input type="text" id="desktopExpSearchInput" placeholder="Search by Block Height (e.g. 1190) or Block Hash..." class="mono-input flex-1">
+            <button class="btn-primary" onclick="searchDesktopBlockExplorer()">🔍 Search</button>
+          </div>
+        </div>
+
+        <div class="grid-2 mt-16">
+          <div class="card">
+            <h3>Explorer Network Stats</h3>
+            <div class="info-row"><span class="info-label">Block Height</span><span class="info-val" id="deskExpHeight">0</span></div>
+            <div class="info-row"><span class="info-label">Difficulty</span><span class="info-val" id="deskExpDiff">0</span></div>
+            <div class="info-row"><span class="info-label">Network Hashrate</span><span class="info-val" id="deskExpHashrate">0 H/s</span></div>
+            <div class="info-row"><span class="info-label">Circulating Supply</span><span class="info-val green" id="deskExpSupply">0 VLT</span></div>
+          </div>
+          <div class="card">
+            <h3>Chain Status</h3>
+            <div class="info-row"><span class="info-label">Block Target</span><span class="info-val">60 Seconds</span></div>
+            <div class="info-row"><span class="info-label">RPC Endpoint</span><span class="info-val">https://node.vaultapp.space</span></div>
+            <div class="info-row"><span class="info-label">Protocol Version</span><span class="info-val">Cryptonote v1.0</span></div>
+          </div>
+        </div>
+
+        <div class="card mt-16">
+          <div class="card-header-flex">
+            <div>
+              <h3>Recent Mined Blocks</h3>
+              <p class="subtitle">Real-time stream of newly solved blocks on the VAULT network.</p>
+            </div>
+            <button class="btn-secondary" onclick="loadDesktopExplorerData()">🔄 Refresh</button>
+          </div>
+
+          <div class="table-responsive mt-12">
+            <table class="tx-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+              <thead>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 12px; color: #94a3b8;">
+                  <th style="padding: 10px;">Height</th>
+                  <th style="padding: 10px;">Block Hash</th>
+                  <th style="padding: 10px;">Txs</th>
+                  <th style="padding: 10px;">Reward</th>
+                  <th style="padding: 10px;">Age</th>
+                </tr>
+              </thead>
+              <tbody id="desktopRecentBlocksTbody">
+                <tr><td colspan="5" class="empty-tx-box">Loading recent blocks...</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -358,6 +420,22 @@
           <button class="btn-secondary mt-16" onclick="showStepChoice()">Back</button>
         </div>
 
+      </div>
+    </div>
+  </div>
+
+  <!-- Desktop Block Detail Modal -->
+  <div id="desktopBlockModal" class="modal-overlay">
+    <div class="modal-card max-w-600">
+      <div class="modal-header">
+        <h3 id="deskBlockModalTitle">Block Details</h3>
+        <button class="btn-close" onclick="closeDesktopBlockModal()">✕</button>
+      </div>
+      <div class="modal-body" id="deskBlockModalBody">
+        <!-- Populated via renderer.js -->
+      </div>
+      <div class="modal-footer mt-16">
+        <button class="btn-secondary" onclick="closeDesktopBlockModal()">Close</button>
       </div>
     </div>
   </div>

@@ -842,3 +842,19 @@ body {
 .footer-links a:hover {
   color: var(--accent-cyan);
 }
+
+/* ─── Explorer Helper Styles ────────────────────────────────────────── */
+.search-box-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.mt-20 {
+  margin-top: 20px;
+}
+
+.modal-lg {
+  max-width: 680px;
+}
+
