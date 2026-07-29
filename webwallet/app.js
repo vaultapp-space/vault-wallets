@@ -506,8 +506,9 @@ async function loadExplorerData() {
     if (expSupplyEl) expSupplyEl.innerText = supplyStr || '0.00 VLT';
 
     if (tbody && currentH > 0) {
-      const startH = Math.max(1, currentH - 9);
-      const rangeRes = await rpcCall(RPC_NODE_URL, 'get_block_headers_range', { start_height: startH, end_height: currentH });
+      const endH = Math.max(0, currentH - 1);
+      const startH = Math.max(0, endH - 9);
+      const rangeRes = await rpcCall(RPC_NODE_URL, 'get_block_headers_range', { start_height: startH, end_height: endH });
 
       if (rangeRes && rangeRes.headers && Array.isArray(rangeRes.headers)) {
         const blocks = [...rangeRes.headers].reverse();

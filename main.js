@@ -10,8 +10,8 @@ let daemonProcess = null;
 let walletRpcProcess = null;
 
 // ─── Daemon Configuration ──────────────────────────────────
-const REMOTE_NODE_HOST = '8.229.216.134';
-const REMOTE_NODE_PORT = 29081;
+const REMOTE_NODE_HOST = 'node.vaultapp.space';
+const REMOTE_NODE_PORT = 443;
 const REMOTE_NODE_URL = 'https://node.vaultapp.space';
 const LOCAL_RPC_PORT = 29081;
 const WALLET_RPC_PORT = 29083;
@@ -83,7 +83,7 @@ function startDaemon() {
       '--rpc-bind-ip', '127.0.0.1',
       '--rpc-bind-port', String(LOCAL_RPC_PORT),
       '--p2p-bind-port', '0',
-      '--add-priority-node', '8.229.216.134:29080',
+      '--add-priority-node', 'node.vaultapp.space:29080',
       '--non-interactive',
       '--log-level', '1'
     ], {
@@ -136,7 +136,7 @@ function startWalletRpc() {
       '--rpc-bind-port', String(WALLET_RPC_PORT),
       '--wallet-dir', walletDir,
       '--disable-rpc-login',
-      '--daemon-address', `${REMOTE_NODE_HOST}:${REMOTE_NODE_PORT}`,
+      '--daemon-address', `127.0.0.1:${LOCAL_RPC_PORT}`,
       '--non-interactive',
       '--log-level', '1'
     ], {
@@ -235,6 +235,26 @@ function generate25WordSeed() {
   return words.join(' ');
 }
 
+// Helper to fetch live remote blockchain height
+async function getLiveNetworkHeight() {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(`${REMOTE_NODE_URL}/json_rpc`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: '0', method: 'get_info' }),
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    const data = await res.json();
+    if (data && data.result && data.result.height) {
+      return data.result.height;
+    }
+  } catch (e) {}
+  return 1317;
+}
+
 // ─── RPC Helper with Retry & Fallback ──────────────────────
 async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
   const walletMethods = ['get_address', 'get_balance', 'get_transfers', 'create_wallet', 'open_wallet', 'restore_deterministic_wallet', 'query_key', 'rescan_blockchain', 'transfer'];
@@ -302,19 +322,9 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
       return { success: true, data: { address: wallet.address, addresses: [{ address: wallet.address, address_index: 0 }] } };
     }
     if (method === 'get_balance') {
-      let currentH = (params && params.height) ? params.height : 1235;
-      try {
-        const infoRes = await makeRequest(`${REMOTE_NODE_URL}/json_rpc`, 'get_info', {});
-        if (infoRes && infoRes.data && infoRes.data.height) {
-          currentH = Math.max(currentH, infoRes.data.height);
-        }
-      } catch (e) {
-        try {
-          const ipRes = await makeRequest(`http://8.229.216.134:29081/json_rpc`, 'get_info', {});
-          if (ipRes && ipRes.data && ipRes.data.height) {
-            currentH = Math.max(currentH, ipRes.data.height);
-          }
-        } catch (e2) {}
+      let currentH = await getLiveNetworkHeight();
+      if (params && params.height && params.height > currentH) {
+        currentH = params.height;
       }
 
       let totalIn = 0;
@@ -354,13 +364,7 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
     }
     if (method === 'get_transfers') {
       let transfers = wallet.transfers || { in: [], out: [], pending: [] };
-      let currentH = 879;
-      try {
-        const infoRes = await makeRequest(`${REMOTE_NODE_URL}/json_rpc`, 'get_info', {});
-        if (infoRes && infoRes.data && infoRes.data.height) {
-          currentH = infoRes.data.height;
-        }
-      } catch (e) {}
+      let currentH = await getLiveNetworkHeight();
 
       const REWARD_PER_BLOCK = 17578350278193;
 
@@ -439,13 +443,7 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
       return { success: true, data: { status: 'OK' } };
     }
     if (method === 'transfer') {
-      let currentH = 879;
-      try {
-        const infoRes = await makeRequest(`${REMOTE_NODE_URL}/json_rpc`, 'get_info', {});
-        if (infoRes && infoRes.data && infoRes.data.height) {
-          currentH = infoRes.data.height;
-        }
-      } catch (e) {}
+      let currentH = await getLiveNetworkHeight();
 
       const txHash = generateRandomHex(64);
       const dest = (params && params.destinations && params.destinations[0]) ? params.destinations[0] : { address: '', amount: 0 };
@@ -486,30 +484,40 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
     }
   }
 
-  // 2. For non-wallet daemon calls (e.g. get_info, get_last_block_header)
-  // Step A: Try local node (127.0.0.1:29081)
+  // 2. For non-wallet daemon calls (e.g. get_info, get_last_block_header, get_block_headers_range)
+  // Always query Remote HTTPS Node to obtain live network height & stats
   try {
-    const localRes = await makeRequest('http://127.0.0.1:29081/json_rpc');
+    const remoteRes = await makeRequest(`${REMOTE_NODE_URL}/json_rpc`, method, params);
+    
+    // Also check local daemon if running
+    let localRes = null;
+    try {
+      localRes = await makeRequest('http://127.0.0.1:29081/json_rpc', method, params);
+    } catch (e) {}
+
     if (localRes && localRes.success && localRes.data) {
+      const localH = localRes.data.height || 0;
+      const remoteH = (remoteRes && remoteRes.success && remoteRes.data && remoteRes.data.height) ? remoteRes.data.height : 0;
+      
+      if (localH >= remoteH && localH > 1) {
+        return localRes;
+      }
+      
+      // If local node is catching up, present the remote live data with target height mapped
+      if (remoteRes && remoteRes.success && remoteRes.data) {
+        remoteRes.fallback = true;
+        if (remoteRes.data.height && localH > 0) {
+          remoteRes.data.local_height = localH;
+          remoteRes.data.target_height = Math.max(remoteH, localRes.data.target_height || 0);
+        }
+        return remoteRes;
+      }
       return localRes;
     }
-  } catch (err) {}
 
-  // Step B: Try Remote HTTPS Node (node.vaultapp.space)
-  try {
-    const remoteRes = await makeRequest('https://node.vaultapp.space/json_rpc');
     if (remoteRes && remoteRes.success && remoteRes.data) {
       remoteRes.fallback = true;
       return remoteRes;
-    }
-  } catch (err) {}
-
-  // Step C: Try Remote IP Node (8.229.216.134:29081)
-  try {
-    const ipRes = await makeRequest('http://8.229.216.134:29081/json_rpc');
-    if (ipRes && ipRes.success && ipRes.data) {
-      ipRes.fallback = true;
-      return ipRes;
     }
   } catch (err) {}
 
@@ -676,7 +684,8 @@ ipcMain.handle('save-recovery-seed', async (event, { address, seed }) => {
 // IPC Handler: Save CSV File to Desktop
 ipcMain.handle('save-csv', async (event, { filename, content }) => {
   try {
-    const csvPath = path.join(os.homedir(), 'Desktop', filename || 'vault_transactions.csv');
+    const safeFilename = path.basename(filename || 'vault_transactions.csv');
+    const csvPath = path.join(os.homedir(), 'Desktop', safeFilename);
     fs.writeFileSync(csvPath, content, 'utf8');
     return { success: true, path: csvPath };
   } catch (err) {
@@ -724,6 +733,9 @@ ipcMain.handle('rpc-call', async (event, { url, method, params }) => {
 // IPC Handler: Direct HTTP Bridge for daemon non-RPC endpoints
 ipcMain.handle('http-post', async (event, { url, body }) => {
   try {
+    if (!url || (!url.startsWith('https://node.vaultapp.space') && !url.startsWith('http://127.0.0.1') && !url.startsWith('https://explorer.vaultapp.space'))) {
+      throw new Error('Unauthorized remote target endpoint');
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 8000);
 

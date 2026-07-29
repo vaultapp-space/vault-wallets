@@ -412,10 +412,20 @@ async function sendTransaction() {
 
 
 function saveNodeSettings() {
-  const host = document.getElementById('nodeHost').value.trim();
-  const walletHost = document.getElementById('walletRpcHost').value.trim();
-  if (host) currentDaemonUrl = `http://${host}/json_rpc`;
-  if (walletHost) currentWalletRpcUrl = `http://${walletHost}/json_rpc`;
+  let host = document.getElementById('nodeHost') ? document.getElementById('nodeHost').value.trim() : '';
+  let walletHost = document.getElementById('walletRpcHost') ? document.getElementById('walletRpcHost').value.trim() : '';
+  if (host) {
+    if (!host.startsWith('http://') && !host.startsWith('https://')) {
+      host = (host.includes('127.0.0.1') || host.includes('localhost')) ? `http://${host}` : `https://${host}`;
+    }
+    currentDaemonUrl = host.endsWith('/json_rpc') ? host : `${host}/json_rpc`;
+  }
+  if (walletHost) {
+    if (!walletHost.startsWith('http://') && !walletHost.startsWith('https://')) {
+      walletHost = (walletHost.includes('127.0.0.1') || walletHost.includes('localhost')) ? `http://${walletHost}` : `https://${walletHost}`;
+    }
+    currentWalletRpcUrl = walletHost.endsWith('/json_rpc') ? walletHost : `${walletHost}/json_rpc`;
+  }
 
   showToast('success', 'Node & Wallet RPC settings updated!');
   fetchActiveAddress();
@@ -931,11 +941,12 @@ async function loadDesktopExplorerData() {
     if (cumDiffEl) cumDiffEl.innerText = cumDiffStr;
 
     if (tbody && currentH > 0) {
-      const startH = Math.max(1, currentH - 9);
+      const endH = Math.max(0, currentH - 1);
+      const startH = Math.max(0, endH - 9);
       const rangeRes = await ipcRenderer.invoke('rpc-call', {
         url: currentDaemonUrl,
         method: 'get_block_headers_range',
-        params: { start_height: startH, end_height: currentH }
+        params: { start_height: startH, end_height: endH }
       });
 
       if (rangeRes && rangeRes.success && rangeRes.data && Array.isArray(rangeRes.data.headers)) {
