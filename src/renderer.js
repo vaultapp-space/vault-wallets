@@ -377,7 +377,13 @@ async function sendTransaction() {
   });
 
   if (res.success && res.data) {
-    showToast('success', `Transaction sent! TX Hash: ${res.data.tx_hash.substring(0, 16)}...`);
+    const txHash = res.data.tx_hash || res.data.txid || '';
+    showToast('success', `Transaction sent! TX Hash: ${txHash.substring(0, 16)}...`);
+    document.getElementById('sendAddress').value = '';
+    document.getElementById('sendAmount').value = '';
+    await loadTransactions();
+    await updateDashboard();
+    switchTab('history');
   } else {
     showToast('error', 'Failed to send transaction: ' + formatRpcError(res));
   }

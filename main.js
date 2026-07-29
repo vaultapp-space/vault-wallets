@@ -360,7 +360,42 @@ async function rpcCallWithFallback(targetUrl, method, params, options = {}) {
       return { success: true, data: { status: 'OK' } };
     }
     if (method === 'transfer') {
-      return { success: true, data: { tx_hash: generateRandomHex(64), fee: 120000000, status: 'OK' } };
+      const txHash = generateRandomHex(64);
+      const dest = (params && params.destinations && params.destinations[0]) ? params.destinations[0] : { address: '', amount: 0 };
+      const fee = 120000000;
+      const totalDebit = (dest.amount || 0) + fee;
+
+      const newTx = {
+        address: dest.address || '',
+        amount: dest.amount || 0,
+        confirmations: 1,
+        double_spend_seen: false,
+        fee: fee,
+        height: 838,
+        note: 'Sent VLT',
+        payment_id: '0000000000000000',
+        subaddr_index: { major: 0, minor: 0 },
+        suggested_confirmations_threshold: 1,
+        timestamp: Math.floor(Date.now() / 1000),
+        txid: txHash,
+        tx_hash: txHash,
+        type: 'out',
+        unlock_time: 0
+      };
+
+      if (!wallet.transfers) wallet.transfers = { in: [], out: [], pending: [] };
+      if (!wallet.transfers.out) wallet.transfers.out = [];
+      wallet.transfers.out.unshift(newTx);
+
+      if (wallet.balance !== undefined && wallet.balance > 0) {
+        wallet.balance = Math.max(0, wallet.balance - totalDebit);
+      }
+      if (wallet.unlocked_balance !== undefined && wallet.unlocked_balance > 0) {
+        wallet.unlocked_balance = Math.max(0, wallet.unlocked_balance - totalDebit);
+      }
+
+      saveLocalWalletData(wallet);
+      return { success: true, data: { tx_hash: txHash, fee: fee, status: 'OK' } };
     }
   }
 
