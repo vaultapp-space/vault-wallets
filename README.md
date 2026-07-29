@@ -5,8 +5,8 @@
 [![Telegram](https://img.shields.io/badge/Telegram-@Vault__Space-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/Vault_Space)
 [![Discord](https://img.shields.io/badge/Discord-Join_Community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/VZyvT)
 [![Blockchain Explorer](https://img.shields.io/badge/Explorer-explorer.vaultapp.space-7f00ff?style=for-the-badge&logo=express&logoColor=white)](https://explorer.vaultapp.space)
-[![macOS Core Wallet](https://img.shields.io/badge/macOS_Core_Wallet-v1.1.0-ff007f?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.0/VAULT-Wallet-1.1.0-arm64.dmg)
-[![Windows Core Wallet](https://img.shields.io/badge/Windows_Core_Wallet-v1.1.0-10b981?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.0/VAULT-Wallet.1.1.0.exe)
+[![macOS Core Wallet](https://img.shields.io/badge/macOS_Core_Wallet-v1.1.1-ff007f?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.1/VAULT-Wallet-1.1.1-arm64.dmg)
+[![Windows Core Wallet](https://img.shields.io/badge/Windows_Core_Wallet-v1.1.1-10b981?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.1/VAULT-Wallet.1.1.1.exe)
 [![Daemon Source](https://img.shields.io/badge/Daemon_Source-VAULT-ff6b6b?style=for-the-badge&logo=github&logoColor=white)](https://github.com/vaultapp-space/VAULT)
 
 Welcome to the official repository for the **VAULT (VLT) Core GUI Wallet** — available as native pre-built core wallet installers for **macOS (Apple Silicon)** and **Windows (64-bit)**.
@@ -26,20 +26,24 @@ VAULT is an untraceable, privacy-centric cryptocurrency built on CryptoNote and 
 
 ---
 
-## 🚀 Downloads (Latest Release v1.1.0)
+## 🚀 Downloads (Latest Release v1.1.1)
+
+> **Note:** These builds are unsigned. On macOS, right-click the app → **Open** → **Open** to bypass
+> the Gatekeeper warning on first launch. On Windows, click **More info** → **Run anyway** if
+> SmartScreen appears.
 
 ### 🍎 macOS Releases
 | Download Package | Installer File | Notes |
 | :--- | :--- | :--- |
-| **[Download .DMG Installer](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.0/VAULT-Wallet-1.1.0-arm64.dmg)** | `VAULT-Wallet-1.1.0-arm64.dmg` | Native Apple Silicon M1/M2/M3 Disk Image |
-| **[Download .ZIP Archive](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.0/VAULT-Wallet-1.1.0-arm64-mac.zip)** | `VAULT-Wallet-1.1.0-arm64-mac.zip` | Standalone Mac Release Archive |
+| **[Download .DMG Installer](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.1/VAULT-Wallet-1.1.1-arm64.dmg)** | `VAULT-Wallet-1.1.1-arm64.dmg` | Native Apple Silicon M1/M2/M3 Disk Image |
+| **[Download .ZIP Archive](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.1/VAULT-Wallet-1.1.1-arm64-mac.zip)** | `VAULT-Wallet-1.1.1-arm64-mac.zip` | Standalone Mac Release Archive |
 
 ### 🪟 Windows Releases
 | Download Package | Installer File | Notes |
 | :--- | :--- | :--- |
-| **[Download Setup Installer](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.0/VAULT-Wallet.Setup.1.1.0.exe)** | `VAULT-Wallet Setup 1.1.0.exe` | Standard Windows Installation Wizard |
-| **[Download Portable .EXE](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.0/VAULT-Wallet.1.1.0.exe)** | `VAULT-Wallet 1.1.0.exe` | Standalone Executable (Runs without setup) |
-| **[Download .ZIP Archive](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.0/VAULT-Wallet-1.1.0-win.zip)** | `VAULT-Wallet-1.1.0-win.zip` | Windows Zip Release Bundle |
+| **[Download Setup Installer](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.1/VAULT-Wallet.Setup.1.1.1.exe)** | `VAULT-Wallet Setup 1.1.1.exe` | Standard Windows Installation Wizard |
+| **[Download Portable .EXE](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.1/VAULT-Wallet.1.1.1.exe)** | `VAULT-Wallet 1.1.1.exe` | Standalone Executable (Runs without setup) |
+| **[Download .ZIP Archive](https://github.com/vaultapp-space/vault-wallets/releases/download/v1.1.1/VAULT-Wallet-1.1.1-win.zip)** | `VAULT-Wallet-1.1.1-win.zip` | Windows Zip Release Bundle |
 
 ---
 
