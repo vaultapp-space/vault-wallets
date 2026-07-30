@@ -76,17 +76,25 @@ function formatRpcError(res) {
 }
 
 function switchTab(tabName) {
-  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('.tab-view').forEach(el => el.classList.remove('active'));
-
   const btn = document.querySelector(`.nav-item[data-tab="${tabName}"]`);
   const view = document.getElementById(`tab-${tabName}`);
 
-  if (btn) btn.classList.add('active');
-  if (view) view.classList.add('active');
+  // If tabName doesn't match a real tab (e.g. a typo), leave the current
+  // tab showing instead of blanking the whole content area — previously
+  // every .tab-view/.nav-item had 'active' removed unconditionally before
+  // checking whether a replacement was actually found.
+  if (!btn || !view) {
+    console.error(`switchTab: no tab found for "${tabName}"`);
+    return;
+  }
+
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-view').forEach(el => el.classList.remove('active'));
+  btn.classList.add('active');
+  view.classList.add('active');
 
   if (tabName === 'receive') renderQrCode(activeAddress);
-  if (tabName === 'history') loadTransactions();
+  if (tabName === 'transactions') loadTransactions();
   if (tabName === 'explorer') loadDesktopExplorerData();
 }
 
@@ -483,7 +491,7 @@ async function sendTransaction() {
       document.getElementById('sendAmount').value = '';
       await loadTransactions();
       await updateDashboard();
-      switchTab('history');
+      switchTab('transactions');
     } else {
       showToast('error', 'Failed to send transaction: ' + formatRpcError(res));
     }
